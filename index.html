@@ -60,7 +60,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 960, H = 600, G = 0.42;
-const STAMP = SELFTEST ? 'v7 TEST' : 'v7 gh';
+const STAMP = SELFTEST ? 'v9 TEST' : 'v9 gh';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,436],[120,424],[240,438],[360,478],[480,492],[600,478],[720,440],[840,424],[960,438]];
@@ -90,7 +90,7 @@ function sfxFreeze(){ tone(1800,2400,.35,'sine',.08); tone(2400,3200,.3,'sine',.
 // ---------- entities ----------
 function mkFighter(spriteKey, x, team, tint, sc){
   const feet = terrainY(x);
-  return { key:spriteKey, x, feet, y:feet-52, w:56*sc, h:82*sc, hp:3, team, tint, sc,
+  return { key:spriteKey, x, feet, y:feet-30, w:56*sc, h:48*sc, hp:3, team, tint, sc,
            cd: team==='e' ? 1+Math.random()*2.5 : 0, cdMax:1.15,
            squash:0, face: team==='p'?1:-1, alive:true, frozen:0, bobT:Math.random()*6.28 };
 }
@@ -98,9 +98,9 @@ let fighters=[], balls=[], parts=[], flakes=[], shake=0, state='title', winner=n
 let drag=null, round=1, roundT=0, teamPower=null, bird=null, birdTimer=9, drops=[], selfT=0;
 
 function reset(){
-  const px=[92,168,244,320,396], ex=[564,640,716,792,868];
+  const px=[70,152,234,316,388], ex=[572,654,736,818,890];
   const pk=['hat','scarf','crown','hat','crown'], ek=['crown','hat','scarf','hat','scarf'];
-  const psc=[1.02,.92,1,.94,1.04], esc=[1.04,.94,1.02,.92,1];
+  const psc=[.60,.54,.58,.56,.61], esc=[.61,.55,.59,.54,.58];
   const eCount = Math.min(5, 2+round); // SnowCraft ramp: 3 rivals, then 4, then 5
   fighters = [];
   px.forEach((x,i)=>fighters.push(mkFighter(pk[i], x, 'p', 0, psc[i])));
@@ -123,7 +123,7 @@ function pos(e){ const r=cv.getBoundingClientRect();
 function nearestReady(p){ // SnowCraft style: grab the squad member you point at
   let best=null, bd=1e9;
   for(const f of alive('p')){ if(f.cd>0) continue;
-    const d=Math.hypot(p.x-f.x, p.y-(f.y-30));
+    const d=Math.hypot(p.x-f.x, p.y-(f.y-18));
     if(d<bd){ bd=d; best=f; } }
   return best;
 }
@@ -139,8 +139,8 @@ function up(e){
     const sp = 8 + pw*13;
     const ang = Math.atan2(dy,dx);
     const flame = teamPower==='flame';
-    balls.push({x:drag.t.x+20*Math.sign(dx||1), y:drag.t.y-52, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp,
-                from:'p', r:11, spin:Math.random()*6, flame});
+    balls.push({x:drag.t.x+12*Math.sign(dx||1), y:drag.t.y-24, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp,
+                from:'p', r:9, spin:Math.random()*6, flame});
     if(flame){ teamPower=null; }
     drag.t.cd = drag.t.cdMax; sfxThrow();
   }
@@ -167,7 +167,7 @@ function ballistic(x0,y0,x1,y1,sp){
 function aiUpdate(dt){
   // SnowCraft-style rivals: sloppy aim in round 1, sharpening every round
   const errX = Math.max(18, 170*Math.pow(.78, round-1));
-  const errY = Math.max(14, 55*Math.pow(.8, round-1));
+  const errY = Math.max(10, 38*Math.pow(.8, round-1));
   const cdBase = Math.max(1.0, 3.2-(round-1)*.25);
   for(const f of alive('e')){
     if(f.frozen>0) continue;
@@ -182,8 +182,8 @@ function aiUpdate(dt){
       let ax = t.x + (Math.random()-.5)*20;
       if(miss < .58) ax += errX*Math.random();        // short -> no-man's land
       else if(miss < .85) ax -= errX*.7*Math.random(); // overthrow past the line
-      const v = ballistic(f.x-20, f.y-52, ax, t.feet-40+(Math.random()-.5)*errY*2, sp);
-      balls.push({x:f.x-20, y:f.y-52, vx:v.vx, vy:v.vy, from:'e', r:11, spin:Math.random()*6});
+      const v = ballistic(f.x-12, f.y-30, ax, t.feet-22+(Math.random()-.5)*errY*2, sp);
+      balls.push({x:f.x-12, y:f.y-30, vx:v.vx, vy:v.vy, from:'e', r:9, spin:Math.random()*6});
       sfxThrow();
     }
   }
@@ -275,8 +275,8 @@ function update(dt){
     if(selfT<=0){ selfT=.55;
       const ps=alive('p'); if(ps.length){ const f=ps[Math.floor(Math.random()*ps.length)];
         const es=alive('e'); if(es.length){ const t=es[Math.floor(Math.random()*es.length)];
-          const v=ballistic(f.x, f.y-52, t.x, t.feet-40, 17);
-          balls.push({x:f.x,y:f.y-52,vx:v.vx,vy:v.vy,from:'p',r:11,spin:0,flame:teamPower==='flame'});
+          const v=ballistic(f.x, f.y-30, t.x, t.feet-22, 17);
+          balls.push({x:f.x,y:f.y-30,vx:v.vx,vy:v.vy,from:'p',r:9,spin:0,flame:teamPower==='flame'});
           if(teamPower==='flame') teamPower=null; } } }
   }
 }
@@ -285,31 +285,21 @@ function poof(x,y,n){ for(let i=0;i<n;i++) parts.push({x,y,vx:(Math.random()-.5)
 // ---------- draw: YETI HOMELAND ----------
 const stars = Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*300,r:.5+Math.random()*1.2,tw:Math.random()*6.28}));
 function drawBG(){
-  // dusk sky
+  // SnowCraft classic daytime sky
   const sky=ctx.createLinearGradient(0,0,0,H);
-  sky.addColorStop(0,'#0e1f3d'); sky.addColorStop(.42,'#1d3f63'); sky.addColorStop(.75,'#3d6a8a'); sky.addColorStop(1,'#7fa3bd');
+  sky.addColorStop(0,'#9fcbe6'); sky.addColorStop(.55,'#c8deed'); sky.addColorStop(1,'#eef5fa');
   ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
-  // stars
-  for(const s of stars){ ctx.globalAlpha=.35+.4*Math.abs(Math.sin(time*.7+s.tw));
-    ctx.fillStyle='#dceeff'; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,7); ctx.fill(); }
-  ctx.globalAlpha=1;
-  // aurora ribbons (yeti country nights)
-  for(let a=0;a<3;a++){
-    const col = a===0?'rgba(126,255,212,.14)':(a===1?'rgba(120,200,255,.10)':'rgba(190,140,255,.08)');
-    ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(0,0);
-    for(let x=0;x<=W;x+=24){ ctx.lineTo(x, 70+a*44 + Math.sin(x*.012+time*.5+a*2)*26 + Math.sin(x*.03+time*.9)*10); }
-    ctx.lineTo(W,0); ctx.closePath(); ctx.fill();
-  }
-  // moon
-  ctx.fillStyle='rgba(235,244,255,.95)'; ctx.beginPath(); ctx.arc(816,84,38,0,7); ctx.fill();
-  ctx.fillStyle='rgba(200,220,240,.5)'; ctx.beginPath(); ctx.arc(804,76,9,0,7); ctx.arc(828,94,6,0,7); ctx.fill();
-  // far glacial peaks
-  drawPeaks([[0,290],[70,178],[150,262],[240,150],[330,270],[420,196],[520,286],[600,168],[700,262],[790,190],[880,276],[960,208]], '#4d6f92', '#c9dcec');
-  drawPeaks([[0,346],[90,262],[180,332],[290,240],[400,338],[500,258],[610,336],[720,246],[830,330],[960,264]], '#5d7fa0', '#d5e6f2');
-  // pines on mid ridges
-  pine(70,300,.7); pine(250,296,.6); pine(595,300,.65); pine(845,296,.7); pine(930,320,.5);
-  // the yeti's ice cave (his den, right hillside)
-  drawCave(120,326,1); drawCave(838,308,.9);
+  // pale winter sun
+  ctx.fillStyle='rgba(255,252,232,.95)'; ctx.beginPath(); ctx.arc(816,84,40,0,7); ctx.fill();
+  ctx.fillStyle='rgba(255,252,232,.35)'; ctx.beginPath(); ctx.arc(816,84,58,0,7); ctx.fill();
+  // far soft snow hills
+  ctx.fillStyle='#e2ecf4'; hill(-80,H-215,1120,240,.26);
+  ctx.fillStyle='#d4e3ef'; hill(180,H-170,1060,210,.22);
+  ctx.fillStyle='#c9dbeb'; hill(-60,H-125,1120,150,.18);
+  // bare winter trees behind the fence
+  tree(84,H-92,54,.9); tree(206,H-84,40,.75); tree(608,H-98,66,1); tree(742,H-86,44,.8); tree(912,H-90,50,.85);
+  // wooden fence row (the SnowCraft classic), planted along the terrain
+  fence();
   // snow terrain
   ctx.fillStyle='#f2f8fd';
   ctx.beginPath(); ctx.moveTo(0,H);
@@ -332,6 +322,37 @@ function drawBG(){
   // sparkles
   ctx.fillStyle='rgba(255,255,255,.9)';
   for(let i=0;i<40;i++){ const x=(i*137)%W, y=520+((i*53)%70); ctx.beginPath(); ctx.arc(x,y,1.5,0,7); ctx.fill(); }
+}
+function hill(x,base,w,h,rough){
+  ctx.beginPath(); ctx.moveTo(x-100,H); ctx.lineTo(x-100,base);
+  for(let i=0;i<=10;i++){ ctx.quadraticCurveTo(x+(i-0.5)*(w/10), base-(i%2?h:h*.4)*rough*2, x+i*(w/10), base); }
+  ctx.lineTo(x+w+100,H); ctx.closePath(); ctx.fill();
+}
+function tree(x,y,h,s){
+  ctx.strokeStyle='#6e5a48'; ctx.lineCap='round';
+  ctx.lineWidth=5*s; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y-h); ctx.stroke();
+  ctx.lineWidth=3*s;
+  [[.45,.55,.5],[.7,-.6,.55],[.62,.62,.35],[.85,-.5,.3]].forEach(b=>{
+    const by=y-h*b[0]; ctx.beginPath(); ctx.moveTo(x,by);
+    ctx.lineTo(x+b[1]*h*.34, by-h*b[2]*.55); ctx.stroke(); });
+  ctx.fillStyle='#f2f8fc';
+  [[.45,1],[.7,-1]].forEach(b=>{
+    const by=y-h*b[0]; ctx.beginPath();
+    ctx.arc(x+b[1]*h*.17, by-h*.16, 3.4*s, 0, 7); ctx.fill(); });
+}
+function fence(){
+  const N=13;
+  ctx.strokeStyle='#7c6248'; ctx.lineCap='round';
+  ctx.lineWidth=7;
+  [ -34, -16 ].forEach(off=>{
+    ctx.beginPath(); ctx.moveTo(10, terrainY(10)+off+2);
+    ctx.quadraticCurveTo(W/2, terrainY(W/2)+off-3, W-10, terrainY(W-10)+off+2); ctx.stroke(); });
+  for(let i=0;i<=N;i++){
+    const px=34+i*(W-40)/N, base=terrainY(px)+4, ph=46+((i*37)%9), top=base-ph;
+    ctx.lineWidth=8; ctx.strokeStyle='#8a6b4f';
+    ctx.beginPath(); ctx.moveTo(px,base+6); ctx.lineTo(px,top); ctx.stroke();
+    ctx.fillStyle='#f4f9fd'; ctx.beginPath(); ctx.ellipse(px,top,5.5,3,0,0,7); ctx.fill();
+  }
 }
 function drawPeaks(pts, rock, cap){
   ctx.beginPath(); ctx.moveTo(pts[0][0],H);
@@ -434,7 +455,7 @@ function drawAim(){
     const dx=drag.x0-drag.x1, dy=drag.y0-drag.y1, pw=Math.min(1,Math.hypot(dx,dy)/240);
     if(pw>.12){
       const sp=8+pw*13, ang=Math.atan2(dy,dx);
-      let vx=Math.cos(ang)*sp, vy=Math.sin(ang)*sp, x=drag.t.x+20*Math.sign(dx||1), y=drag.t.y-52;
+      let vx=Math.cos(ang)*sp, vy=Math.sin(ang)*sp, x=drag.t.x+20*Math.sign(dx||1), y=drag.t.y-24;
       ctx.fillStyle= teamPower==='flame' ? 'rgba(255,170,60,.9)' : 'rgba(255,255,255,.85)';
       for(let i=0;i<26;i++){ vy+=G; x+=vx; y+=vy; if(i%3===0){ ctx.beginPath(); ctx.arc(x,y,2.4,0,7); ctx.fill(); } if(y>terrainY(x)) break; }
       // power meter
@@ -493,21 +514,15 @@ function bigText(txt,y,size,fill){ ctx.font=`bold ${size}px 'Trebuchet MS',sans-
   ctx.textAlign='center'; ctx.lineWidth=8; ctx.strokeStyle='rgba(13,27,42,.8)';
   ctx.strokeText(txt,W/2,y); ctx.fillStyle=fill; ctx.fillText(txt,W/2,y); }
 function drawTitle(){
-  ctx.fillStyle='rgba(10,18,34,.45)'; ctx.fillRect(0,0,W,H);
-  bigText('SNOWBALL WARS', 186, 74, '#ffffff');
-  ctx.font="italic 26px 'Trebuchet MS',sans-serif"; ctx.textAlign='center';
-  ctx.lineWidth=5; ctx.strokeStyle='rgba(13,27,42,.7)';
-  ctx.strokeText('a Lil Foots winter showdown',W/2,228); ctx.fillStyle='#ffd76d'; ctx.fillText('a Lil Foots winter showdown',W/2,228);
-  const keys=['hat','crown','scarf'];
-  keys.forEach((k,i)=>{ const img=IMAGES[k];
-    if(img && img.ok){ ctx.drawImage(img, W/2-330+i*220 - img.width*.5, 296, img.width, img.height); }
-    else { ctx.fillStyle='#7a5a3e'; ctx.beginPath(); ctx.ellipse(W/2-330+i*220, 350, 30, 42, 0, 0, 7); ctx.fill(); }
-    if(i<2){ ctx.font='30px sans-serif'; ctx.fillStyle='#fff'; ctx.fillText('vs', W/2-330+i*220+110, 420); } });
-  ctx.font="italic 20px 'Trebuchet MS',sans-serif"; ctx.fillStyle='#cfe6f5'; ctx.textAlign='center';
-  ctx.fillText('High in the frozen mountains where the snow yetis live.', W/2, 478);
-  ctx.fillText('Drag BACK from your squad to lob a snowball. Bury all rivals.', W/2, 504);
-  ctx.fillText('Hit the power bird mid-flight for FLAMING or FROST snowballs.', W/2, 530);
-  bigText('CLICK TO PLAY', 572, 34, '#7fd8ff');
+  bigText('SNOWBALL WARS', 128, 78, '#ffffff');
+  ctx.font="italic 30px 'Trebuchet MS',sans-serif"; ctx.textAlign='center';
+  ctx.lineWidth=6; ctx.strokeStyle='rgba(13,27,42,.75)';
+  ctx.strokeText("Season's Greetings from Lil Foots",W/2,170); ctx.fillStyle='#ffd76d'; ctx.fillText("Season's Greetings from Lil Foots",W/2,170);
+  ctx.font="italic 21px 'Trebuchet MS',sans-serif"; ctx.fillStyle='rgba(13,27,42,.7)'; ctx.textAlign='center';
+  ctx.fillText('Bury the rival squad. Last team standing wins the hill.', W/2, 496);
+  ctx.fillText('Drag BACK from your squad to lob a snowball.', W/2, 522);
+  ctx.fillText('Hit the power bird mid-flight for FLAMING or FROST snowballs.', W/2, 548);
+  bigText('CLICK TO PLAY', 584, 30, '#7fd8ff');
   ctx.font="12px sans-serif"; ctx.fillStyle='rgba(255,255,255,.65)'; ctx.textAlign='right';
   ctx.fillText(STAMP, W-10, H-10);
 }
