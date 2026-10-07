@@ -62,7 +62,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 960, H = 600, G = 0.42;
-const STAMP = SELFTEST ? 'v11.2 TEST' : 'v11.2';
+const STAMP = SELFTEST ? 'v11.3 TEST' : 'v11.3';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,436],[120,424],[240,438],[360,478],[480,492],[600,478],[720,440],[840,424],[960,438]];
@@ -540,8 +540,8 @@ function drawTitle(){
   ctx.strokeText("Season's Greetings from Lil Foots",W/2,170); ctx.fillStyle='#ffd76d'; ctx.fillText("Season's Greetings from Lil Foots",W/2,170);
   ctx.font="italic 21px 'Trebuchet MS',sans-serif"; ctx.fillStyle='rgba(13,27,42,.7)'; ctx.textAlign='center';
   ctx.fillText('Bury the rival squad. Last team standing wins the hill.', W/2, 496);
-  ctx.fillText('Drag BACK from your squad to lob a snowball.', W/2, 522);
-  ctx.fillText('Hit the power bird mid-flight for FLAMING or FROST snowballs.', W/2, 548);
+  ctx.fillText('Drag a kid to move them — HOLD to power up, release to throw.', W/2, 522);
+  ctx.fillText('Bury the whole rival squad to take the hill.', W/2, 548);
   bigText('CLICK TO PLAY', 584, 30, '#7fd8ff');
   ctx.font="12px sans-serif"; ctx.fillStyle='rgba(255,255,255,.65)'; ctx.textAlign='right';
   ctx.fillText(STAMP, W-10, H-10);
