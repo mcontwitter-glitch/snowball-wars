@@ -64,10 +64,10 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v18 TEST' : 'v18';
+const STAMP = SELFTEST ? 'v19 TEST' : 'v19';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
-const TPTS = [[0,436],[180,424],[360,438],[540,478],[720,492],[900,478],[1080,440],[1260,424],[1440,438]];
+const TPTS = [[0,244],[180,252],[360,266],[540,286],[720,312],[900,344],[1080,382],[1260,424],[1440,470]];
 function terrainY(x){
   const n = TPTS.length-1, fx = Math.max(0, Math.min(W, x)) / W * n;
   const i = Math.min(n-1, Math.floor(fx)), t = fx - i;
@@ -112,11 +112,11 @@ function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
   kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null;
   const pk=['hat','whitey','crown'], psc=[1.0,.94,.98]; // SnowCraft-size kids: faces readable
-  [1310,1165,1020].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i]))); // original layout: Lil Foots clustered RIGHT like the SnowCraft intro
+  [1245,1115,985].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i]))); // reference: reds span 62-87% width, lower-right on the tilted field
   const gd = greensPerLevel(level);
   for(let i=0;i<gd;i++){
     const row = Math.floor(i/4);
-    const gx = 510 - (i%4)*125 - row*55;   // greens hold the LEFT side, exactly like the original
+    const gx = 465 - (i%4)*125 - row*55;   // reference: greens span 11-32% width, upper-left
     kids.push(mkKid('green', gx-Math.random()*30, 'e', 0, [1.0,.92,.96][i%3]));
   }
   flakes = Array.from({length:90},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.4+Math.random()*1.2,drift:Math.random()*6.28}));
@@ -288,7 +288,7 @@ function update(dt){
         };
         let best=null;
         for(let p=3; p<=8; p++){
-          for(let x=1360; x>=680; x-=6){
+          for(let x=1245; x>=980; x-=6){
             const land = sim(x, p);
             const err = Math.abs(land - t.x);
             if(err < 14 && (!best || err < best.err)) best = {x, p, err};
@@ -310,12 +310,6 @@ function drawBG(){
   // pale winter sun
   ctx.fillStyle='rgba(255,252,232,.95)'; ctx.beginPath(); ctx.arc(1224,84,40,0,7); ctx.fill();
   ctx.fillStyle='rgba(255,252,232,.35)'; ctx.beginPath(); ctx.arc(1224,84,58,0,7); ctx.fill();
-  // far soft snow hills
-  ctx.fillStyle='#e2ecf4'; hill(-120,H-235,1680,260,.26);
-  ctx.fillStyle='#d4e3ef'; hill(270,H-190,1600,225,.22);
-  ctx.fillStyle='#c9dbeb'; hill(-90,H-140,1680,165,.18);
-  // bare winter trees behind the fence
-  tree(84,H-102,54,.9); tree(206,H-94,40,.75); tree(608,H-108,66,1); tree(742,H-96,44,.8); tree(912,H-100,50,.85); tree(1150,H-106,58,.9); tree(1320,H-92,46,.78);
   // wooden fence row (the SnowCraft classic), planted along the terrain
   fence();
   // snow terrain
@@ -326,20 +320,8 @@ function drawBG(){
   // terrain shading crest
   ctx.strokeStyle='rgba(190,215,235,.6)'; ctx.lineWidth=3;
   ctx.beginPath(); for(let x=0;x<=W;x+=16){ const y=terrainY(x)+2; x?ctx.lineTo(x,y):ctx.moveTo(x,y); } ctx.stroke();
-  // frozen lake in the middle valley
-  const ly = (terrainY(645)+terrainY(795))/2;
-  ctx.fillStyle='rgba(160,210,240,.55)';
-  ctx.beginPath(); ctx.ellipse(720,ly+8,129,17,0,0,7); ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=1.2;
-  ctx.beginPath(); ctx.moveTo(630,ly+4); ctx.lineTo(757,ly+10); ctx.moveTo(672,ly+14); ctx.lineTo(795,ly+8); ctx.stroke();
-  // giant yeti footprints crossing the foreground
-  for(let i=0;i<7;i++){
-    const fx=60+i*215+(i%2)*40, fy=590+((i%2)?-12:6), sc=1-(i%3)*.12;
-    foot(fx,fy,sc, (i%2)?.18:-.18);
-  }
-  // sparkles
-  ctx.fillStyle='rgba(255,255,255,.9)';
-  for(let i=0;i<60;i++){ const x=(i*137)%W, y=560+((i*53)%80); ctx.beginPath(); ctx.arc(x,y,1.5,0,7); ctx.fill(); }
+  // crescent snow drifts flanking the middle, exactly like the reference
+  drift(560); drift(880);
 }
 function hill(x,base,w,h,rough){
   ctx.beginPath(); ctx.moveTo(x-100,H); ctx.lineTo(x-100,base);
@@ -357,6 +339,15 @@ function tree(x,y,h,s){
   [[.45,1],[.7,-1]].forEach(b=>{
     const by=y-h*b[0]; ctx.beginPath();
     ctx.arc(x+b[1]*h*.17, by-h*.16, 3.4*s, 0, 7); ctx.fill(); });
+}
+function drift(x){
+  const y = terrainY(x), w=64, h=30;
+  ctx.fillStyle='#d7e4ee';
+  ctx.beginPath(); ctx.moveTo(x-w, y+2);
+  ctx.quadraticCurveTo(x, y-h, x+w, y+2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#f4f9fd';
+  ctx.beginPath(); ctx.moveTo(x-w*.6, y+1);
+  ctx.quadraticCurveTo(x, y-h*.92, x+w*.6, y+1); ctx.closePath(); ctx.fill();
 }
 function fence(){
   const N=13;
