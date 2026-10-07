@@ -37,7 +37,7 @@ setTimeout(function(){
 // power-bird drops FLAMING (instant bury) & FROST (freeze rivals) orbs,
 // rolling snow terrain with real ball-ground collision.
 const SELFTEST = /[?&]selftest=1/.test(location.search);
-const SPRITE_V = 'v16'; // cache-bust: force every device to pull fresh faces
+const SPRITE_V = 'v17'; // cache-bust: force every device to pull fresh faces
 const SPRITES = {
   hat:   'sprite_hat.png?'+SPRITE_V,
   crown: 'sprite_crown.png?'+SPRITE_V,
@@ -64,7 +64,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v14.2 TEST' : 'v14.2';
+const STAMP = SELFTEST ? 'v17 TEST' : 'v17';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,436],[180,424],[360,438],[540,478],[720,492],[900,478],[1080,440],[1260,424],[1440,438]];
@@ -112,7 +112,7 @@ function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
   kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null;
   const pk=['hat','whitey','crown'], psc=[1.0,.94,.98]; // SnowCraft-size kids: faces readable
-  [150,420,700].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i])));
+  [130,275,420].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i]))); // SnowCraft: reds clustered left, greens clustered right
   const gd = greensPerLevel(level);
   for(let i=0;i<gd;i++){
     const row = Math.floor(i/4);
