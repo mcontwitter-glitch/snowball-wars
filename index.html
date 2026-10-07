@@ -63,7 +63,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 960, H = 600, G = 0.42;
-const STAMP = SELFTEST ? 'v11.4 TEST' : 'v11.4';
+const STAMP = SELFTEST ? 'v12 TEST' : 'v12';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,436],[120,424],[240,438],[360,478],[480,492],[600,478],[720,440],[840,424],[960,438]];
@@ -110,11 +110,11 @@ function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
   kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null;
   const pk=['hat','whitey','crown'], psc=[.62,.58,.60];
-  [120,190,258].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i])));
+  [105,240,375].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i])));
   const gd = greensPerLevel(level);
   for(let i=0;i<gd;i++){
     const row = Math.floor(i/4);
-    const gx = 545 + (i%4)*85 + row*38;
+    const gx = 540 + (i%4)*100 + row*45;
     kids.push(mkKid('green', gx+Math.random()*30, 'e', 0, [.58,.54,.56][i%3]));
   }
   flakes = Array.from({length:90},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.4+Math.random()*1.2,drift:Math.random()*6.28}));
@@ -165,8 +165,8 @@ function up(e){ if(!hold) return;
     else { k.state='ready'; k.stateT=0; }
   }
   e.preventDefault(); }
-cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
-cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); cv.addEventListener('touchend',up);
+cv.addEventListener('mousedown',click); cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+cv.addEventListener('touchstart',click,{passive:false}); cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); cv.addEventListener('touchend',up);
 
 function click(e){ const p=pos(e);
   if(state==='title'){ startGame(); return; }
