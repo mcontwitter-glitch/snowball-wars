@@ -37,7 +37,7 @@ setTimeout(function(){
 // power-bird drops FLAMING (instant bury) & FROST (freeze rivals) orbs,
 // rolling snow terrain with real ball-ground collision.
 const SELFTEST = /[?&]selftest=1/.test(location.search);
-const SPRITE_V = 'v14b'; // cache-bust: force every device to pull fresh faces
+const SPRITE_V = 'v15'; // cache-bust: force every device to pull fresh faces
 const SPRITES = {
   hat:   'sprite_hat.png?'+SPRITE_V,
   crown: 'sprite_crown.png?'+SPRITE_V,
@@ -64,7 +64,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v14.2 TEST' : 'v14.2';
+const STAMP = SELFTEST ? 'v15 TEST' : 'v15';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,436],[180,424],[360,438],[540,478],[720,492],[900,478],[1080,440],[1260,424],[1440,438]];
