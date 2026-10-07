@@ -167,6 +167,7 @@ function up(e){ if(!hold) return;
   e.preventDefault(); }
 cv.addEventListener('mousedown',click); cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
 cv.addEventListener('touchstart',click,{passive:false}); cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); cv.addEventListener('touchend',up);
+cv.addEventListener('click',click);
 
 function click(e){ const p=pos(e);
   if(state==='title'){ startGame(); return; }
