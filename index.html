@@ -14,7 +14,7 @@
 </head>
 <body>
 <div id="nojs" style="position:fixed;top:0;left:0;right:0;padding:12px;text-align:center;color:#fff;background:#c0392b;font-family:monospace;font-size:14px;z-index:99">&#9888;&#65039; If you can read this red bar, your network is blocking this page's code. Turn OFF cellular / switch to WiFi and reload. This bar disappears automatically when the game can run.</div>
-<div id="wrap"><canvas id="game" width="960" height="600"></canvas></div>
+<div id="wrap"><canvas id="game" width="1440" height="660"></canvas></div>
 <div id="rot">&#128241; Tip: rotate to landscape for the full battlefield</div>
 <div id="err"></div>
 <script>
@@ -62,11 +62,11 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
-const W = 960, H = 600, G = 0.42;
-const STAMP = SELFTEST ? 'v12 TEST' : 'v12';
+const W = 1440, H = 660, G = 0.42;
+const STAMP = SELFTEST ? 'v12.2 TEST' : 'v12.2';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
-const TPTS = [[0,436],[120,424],[240,438],[360,478],[480,492],[600,478],[720,440],[840,424],[960,438]];
+const TPTS = [[0,436],[180,424],[360,438],[540,478],[720,492],[900,478],[1080,440],[1260,424],[1440,438]];
 function terrainY(x){
   const n = TPTS.length-1, fx = Math.max(0, Math.min(W, x)) / W * n;
   const i = Math.min(n-1, Math.floor(fx)), t = fx - i;
@@ -110,11 +110,11 @@ function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
   kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null;
   const pk=['hat','whitey','crown'], psc=[.62,.58,.60];
-  [105,240,375].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i])));
+  [150,420,700].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i])));
   const gd = greensPerLevel(level);
   for(let i=0;i<gd;i++){
     const row = Math.floor(i/4);
-    const gx = 540 + (i%4)*100 + row*45;
+    const gx = 930 + (i%4)*125 + row*55;
     kids.push(mkKid('green', gx+Math.random()*30, 'e', 0, [.58,.54,.56][i%3]));
   }
   flakes = Array.from({length:90},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.4+Math.random()*1.2,drift:Math.random()*6.28}));
@@ -155,7 +155,7 @@ function down(e){ if(state!=='play') return; const p=pos(e);
   e.preventDefault(); }
 function move(e){ const p=pos(e); lastMouse.x=p.x; lastMouse.y=p.y;
   if(!hold) return;
-  hold.kid.x = Math.max(60, Math.min(460, p.x)); kidFeet(hold.kid);
+  hold.kid.x = Math.max(80, Math.min(760, p.x)); kidFeet(hold.kid);
   e.preventDefault(); }
 function up(e){ if(!hold) return;
   const power = Math.max(0, Math.min(8, Math.floor((time-hold.t0)*12)));
@@ -197,7 +197,7 @@ function greenTick(k){
     case 'walk':
       k.x += k.walkDir*3.2;
       if(k.x > W-60) k.walkDir = -1;
-      if(k.x < 520){ k.state='windup'; k.stateT=5; }   // reached the line: set up to throw
+      if(k.x < 780){ k.state='windup'; k.stateT=5; }   // reached the line: set up to throw
       kidFeet(k);
       k.walkSteps--;
       if(k.walkSteps<=0 || Math.random()<.05) k.state='ready';
@@ -236,10 +236,10 @@ function update(dt){
       b.t -= 2;
       // authentic: rise phase (fixed slope, length = power x 2 steps), then drop (half speed)
       if(b.phase==='rise'){
-        b.x += b.dir*24; b.y -= 12; b.steps--; b.spin+=.4;
+        b.x += b.dir*36; b.y -= 18; b.steps--; b.spin+=.4;
         if(b.steps<=0) b.phase='drop';
       } else {
-        b.x += b.dir*12; b.y += 6; b.spin+=.4;
+        b.x += b.dir*18; b.y += 9; b.spin+=.4;
       }
       // hit check across the flight (arc adaptation of the original's rise-crossing)
       const targets = b.from==='p' ? greens() : reds();
@@ -278,14 +278,14 @@ function update(dt){
         const sim = (x0, p) => {
           let x=x0, y=terrainY(x0)-20, steps=p*2;
           while(x>-40 && x<W+40){
-            if(steps>0){ x+=24; y-=12; steps--; } else { x+=12; y+=6; }
+            if(steps>0){ x+=36; y-=18; steps--; } else { x+=18; y+=9; }
             if(y>=terrainY(x)-2) break;
           }
           return x;
         };
         let best=null;
         for(let p=3; p<=8; p++){
-          for(let x=60; x<=460; x+=4){
+          for(let x=80; x<=760; x+=6){
             const land = sim(x, p);
             const err = Math.abs(land - t.x);
             if(err < 14 && (!best || err < best.err)) best = {x, p, err};
@@ -305,14 +305,14 @@ function drawBG(){
   sky.addColorStop(0,'#9fcbe6'); sky.addColorStop(.55,'#c8deed'); sky.addColorStop(1,'#eef5fa');
   ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
   // pale winter sun
-  ctx.fillStyle='rgba(255,252,232,.95)'; ctx.beginPath(); ctx.arc(816,84,40,0,7); ctx.fill();
-  ctx.fillStyle='rgba(255,252,232,.35)'; ctx.beginPath(); ctx.arc(816,84,58,0,7); ctx.fill();
+  ctx.fillStyle='rgba(255,252,232,.95)'; ctx.beginPath(); ctx.arc(1224,84,40,0,7); ctx.fill();
+  ctx.fillStyle='rgba(255,252,232,.35)'; ctx.beginPath(); ctx.arc(1224,84,58,0,7); ctx.fill();
   // far soft snow hills
-  ctx.fillStyle='#e2ecf4'; hill(-80,H-215,1120,240,.26);
-  ctx.fillStyle='#d4e3ef'; hill(180,H-170,1060,210,.22);
-  ctx.fillStyle='#c9dbeb'; hill(-60,H-125,1120,150,.18);
+  ctx.fillStyle='#e2ecf4'; hill(-120,H-235,1680,260,.26);
+  ctx.fillStyle='#d4e3ef'; hill(270,H-190,1600,225,.22);
+  ctx.fillStyle='#c9dbeb'; hill(-90,H-140,1680,165,.18);
   // bare winter trees behind the fence
-  tree(84,H-92,54,.9); tree(206,H-84,40,.75); tree(608,H-98,66,1); tree(742,H-86,44,.8); tree(912,H-90,50,.85);
+  tree(84,H-102,54,.9); tree(206,H-94,40,.75); tree(608,H-108,66,1); tree(742,H-96,44,.8); tree(912,H-100,50,.85); tree(1150,H-106,58,.9); tree(1320,H-92,46,.78);
   // wooden fence row (the SnowCraft classic), planted along the terrain
   fence();
   // snow terrain
@@ -324,19 +324,19 @@ function drawBG(){
   ctx.strokeStyle='rgba(190,215,235,.6)'; ctx.lineWidth=3;
   ctx.beginPath(); for(let x=0;x<=W;x+=16){ const y=terrainY(x)+2; x?ctx.lineTo(x,y):ctx.moveTo(x,y); } ctx.stroke();
   // frozen lake in the middle valley
-  const ly = (terrainY(430)+terrainY(530))/2;
+  const ly = (terrainY(645)+terrainY(795))/2;
   ctx.fillStyle='rgba(160,210,240,.55)';
-  ctx.beginPath(); ctx.ellipse(480,ly+8,86,17,0,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(720,ly+8,129,17,0,0,7); ctx.fill();
   ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=1.2;
-  ctx.beginPath(); ctx.moveTo(420,ly+4); ctx.lineTo(505,ly+10); ctx.moveTo(448,ly+14); ctx.lineTo(530,ly+8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(630,ly+4); ctx.lineTo(757,ly+10); ctx.moveTo(672,ly+14); ctx.lineTo(795,ly+8); ctx.stroke();
   // giant yeti footprints crossing the foreground
-  for(let i=0;i<5;i++){
-    const fx=60+i*205+(i%2)*40, fy=548+((i%2)?-12:6), sc=1-(i%3)*.12;
+  for(let i=0;i<7;i++){
+    const fx=60+i*215+(i%2)*40, fy=590+((i%2)?-12:6), sc=1-(i%3)*.12;
     foot(fx,fy,sc, (i%2)?.18:-.18);
   }
   // sparkles
   ctx.fillStyle='rgba(255,255,255,.9)';
-  for(let i=0;i<40;i++){ const x=(i*137)%W, y=520+((i*53)%70); ctx.beginPath(); ctx.arc(x,y,1.5,0,7); ctx.fill(); }
+  for(let i=0;i<60;i++){ const x=(i*137)%W, y=560+((i*53)%80); ctx.beginPath(); ctx.arc(x,y,1.5,0,7); ctx.fill(); }
 }
 function hill(x,base,w,h,rough){
   ctx.beginPath(); ctx.moveTo(x-100,H); ctx.lineTo(x-100,base);
@@ -541,10 +541,10 @@ function drawTitle(){
   ctx.lineWidth=6; ctx.strokeStyle='rgba(13,27,42,.75)';
   ctx.strokeText("Season's Greetings from Lil Foots",W/2,170); ctx.fillStyle='#ffd76d'; ctx.fillText("Season's Greetings from Lil Foots",W/2,170);
   ctx.font="italic 21px 'Trebuchet MS',sans-serif"; ctx.fillStyle='rgba(13,27,42,.7)'; ctx.textAlign='center';
-  ctx.fillText('Bury the rival squad. Last team standing wins the hill.', W/2, 496);
-  ctx.fillText('Drag a kid to move them — HOLD to power up, release to throw.', W/2, 522);
-  ctx.fillText('Bury the whole rival squad to take the hill.', W/2, 548);
-  bigText('CLICK TO PLAY', 584, 30, '#7fd8ff');
+  ctx.fillText('Bury the rival squad. Last team standing wins the hill.', W/2, 540);
+  ctx.fillText('Drag a kid to move them — HOLD to power up, release to throw.', W/2, 566);
+  ctx.fillText('Bury the whole rival squad to take the hill.', W/2, 592);
+  bigText('CLICK TO PLAY', 630, 30, '#7fd8ff');
   ctx.font="12px sans-serif"; ctx.fillStyle='rgba(255,255,255,.65)'; ctx.textAlign='right';
   ctx.fillText(STAMP, W-10, H-10);
 }
