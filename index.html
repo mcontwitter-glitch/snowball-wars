@@ -32,7 +32,7 @@ setTimeout(function(){
 }, 4000);
 </script>
 <script>
-// ================= v7 - SnowCraft-faithful + YETI HOMELAND map =================
+// ================= v10 - SNOWCRAFT AUTHENTIC: faithful port of the 1999 Nicholson NY Lingo source =================
 // gameplay: 5v5, drag-back slingshot, hits bury (3 = mound), rounds escalate,
 // power-bird drops FLAMING (instant bury) & FROST (freeze rivals) orbs,
 // rolling snow terrain with real ball-ground collision.
@@ -60,7 +60,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 960, H = 600, G = 0.42;
-const STAMP = SELFTEST ? 'v9 TEST' : 'v9 gh';
+const STAMP = SELFTEST ? 'v10 TEST' : 'v10 authentic';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,436],[120,424],[240,438],[360,478],[480,492],[600,478],[720,440],[840,424],[960,438]];
@@ -87,201 +87,212 @@ function sfxBird(){ tone(1200,700,.09,'square',.06); tone(1400,900,.09,'square',
 function sfxPower(){ [660,880,1320].forEach((f,i)=>{ tone(f,f,.18,'triangle',.1); }); }
 function sfxFreeze(){ tone(1800,2400,.35,'sine',.08); tone(2400,3200,.3,'sine',.05); }
 
-// ---------- entities ----------
-function mkFighter(spriteKey, x, team, tint, sc){
+// ---------- entities: faithful port of the 1999 SnowCraft Lingo source ----------
+// RED = your 3 kids, 2 hits each. GREEN = rival wave, 3 hits each (ow -> down -> dead).
+// You drag a kid & hold to charge power 0-8; release lobs a fixed-slope snowball (distance = power).
+function mkKid(key, x, team, tint, sc){
   const feet = terrainY(x);
-  return { key:spriteKey, x, feet, y:feet-30, w:56*sc, h:48*sc, hp:3, team, tint, sc,
-           cd: team==='e' ? 1+Math.random()*2.5 : 0, cdMax:1.15,
-           squash:0, face: team==='p'?1:-1, alive:true, frozen:0, bobT:Math.random()*6.28 };
+  return { key, x, feet, y:feet-30, w:34*sc, h:50*sc, sc, team, tint,
+           hits:0, maxHits: team==='p'?2:3,
+           state:'ready', stateT:0, clock:Math.random(), walkDir:0, walkSteps:0,
+           face: team==='p'?1:-1, alive:true, squash:0, bobT:Math.random()*6.28 };
 }
-let fighters=[], balls=[], parts=[], flakes=[], shake=0, state='title', winner=null, time=0;
-let drag=null, round=1, roundT=0, teamPower=null, bird=null, birdTimer=9, drops=[], selfT=0;
-
+let kids=[], balls=[], parts=[], flakes=[], shake=0, state='title', time=0;
+let level=1, score=0, levelKills=0, winner=null, bannerT=0, celebrate=0;
+let hold=null; // {kid, t0}
+const lastMouse={x:-1,y:-1};
+function greensPerLevel(L){ return Math.min(12, 1+2*L); } // 3,5,7,9,11,12,12...
+function reds(){ return kids.filter(k=>k.team==='p'); }
+function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
-  const px=[70,152,234,316,388], ex=[572,654,736,818,890];
-  const pk=['hat','scarf','crown','hat','crown'], ek=['crown','hat','scarf','hat','scarf'];
-  const psc=[.60,.54,.58,.56,.61], esc=[.61,.55,.59,.54,.58];
-  const eCount = Math.min(5, 2+round); // SnowCraft ramp: 3 rivals, then 4, then 5
-  fighters = [];
-  px.forEach((x,i)=>fighters.push(mkFighter(pk[i], x, 'p', 0, psc[i])));
-  ex.slice(0, eCount).forEach((x,i)=>fighters.push(mkFighter(ek[i], x, 'e', 150, esc[i])));
-  balls=[]; parts=[]; winner=null; shake=0; drops=[]; teamPower=null; bird=null; birdTimer=8+Math.random()*4;
+  kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null;
+  const pk=['hat','scarf','crown'], psc=[.62,.56,.60];
+  [120,190,258].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i])));
+  const gd = greensPerLevel(level);
+  for(let i=0;i<gd;i++){
+    const row = Math.floor(i/4);
+    const gx = 545 + (i%4)*85 + row*38;
+    kids.push(mkKid(['crown','hat','scarf'][i%3], gx+Math.random()*30, 'e', 125, [.60,.55,.58][i%3]));
+  }
   flakes = Array.from({length:90},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.4+Math.random()*1.2,drift:Math.random()*6.28}));
 }
-function alive(team){ return fighters.filter(f=>f.team===team && f.alive); }
-function nextThrower(){
-  const ready = alive('p').filter(f=>f.cd<=0);
-  if(!ready.length) return null;
-  ready.sort((a,b)=>a.x-b.x);
-  return ready[(nextThrower.i = ((nextThrower.i||0)+1) % ready.length)];
+function kidFeet(k){ k.feet = terrainY(k.x); k.y = k.feet-30; }
+function throwBall(k, power){
+  const dir = k.team==='p' ? 1 : -1;
+  balls.push({x:k.x+dir*8, y:k.feet-38, dir, from:k.team, power,
+              phase:'rise', steps:power*2, r:6+power*.8, spin:Math.random()*6, t:0});
+  k.state='toss'; k.stateT=5; sfxThrow();
+}
+function hittable(k){
+  // authentic: only corpses/empty slots are immune (memberNum > "G recover" in the source)
+  return k.alive;
+}
+function kidHit(k, b){
+  k.hits++; k.squash=1; shake=7; sfxHit(); poof(b.x,b.y,12);
+  if(k.team==='e'){
+    if(k.hits>=k.maxHits){ k.alive=false; k.state='dead'; levelKills++; sfxBuried(); poof(k.x,k.feet-16,18); }
+    else if(k.hits===2){ k.state='down'; k.stateT=25; }
+    else { k.state='ow'; k.stateT=10; }
+  } else {
+    if(k.hits>=k.maxHits){ k.alive=false; k.state='dead'; sfxBuried(); poof(k.x,k.feet-16,18); }
+    else { k.state='daze'; k.stateT=15; }
+  }
 }
 
-// ---------- input ----------
+// ---------- input: drag kid + hold to charge ----------
 function pos(e){ const r=cv.getBoundingClientRect();
   const t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
   return { x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height) }; }
-function nearestReady(p){ // SnowCraft style: grab the squad member you point at
-  let best=null, bd=1e9;
-  for(const f of alive('p')){ if(f.cd>0) continue;
-    const d=Math.hypot(p.x-f.x, p.y-(f.y-18));
-    if(d<bd){ bd=d; best=f; } }
-  return best;
-}
 function down(e){ if(state!=='play') return; const p=pos(e);
-  const t=nearestReady(p) || nextThrower(); if(!t){ return; }
-  drag={t, x0:p.x, y0:p.y, x1:p.x, y1:p.y}; e.preventDefault(); }
-function move(e){ if(!drag) return; const p=pos(e); drag.x1=p.x; drag.y1=p.y; e.preventDefault(); }
-function up(e){
-  if(!drag) return;
-  const dx = drag.x0-drag.x1, dy = drag.y0-drag.y1;
-  const pw = Math.min(1, Math.hypot(dx,dy)/240);
-  if(pw > 0.12){
-    const sp = 8 + pw*13;
-    const ang = Math.atan2(dy,dx);
-    const flame = teamPower==='flame';
-    balls.push({x:drag.t.x+12*Math.sign(dx||1), y:drag.t.y-24, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp,
-                from:'p', r:9, spin:Math.random()*6, flame});
-    if(flame){ teamPower=null; }
-    drag.t.cd = drag.t.cdMax; sfxThrow();
+  let best=null, bd=70;
+  for(const k of reds()){ if(!k.alive || k.state!=='ready') continue;
+    const d=Math.hypot(p.x-k.x, p.y-(k.y-16));
+    if(d<bd){ bd=d; best=k; } }
+  if(best){ hold={kid:best, t0:time}; best.state='cock'; best.stateT=999; }
+  e.preventDefault(); }
+function move(e){ const p=pos(e); lastMouse.x=p.x; lastMouse.y=p.y;
+  if(!hold) return;
+  hold.kid.x = Math.max(60, Math.min(460, p.x)); kidFeet(hold.kid);
+  e.preventDefault(); }
+function up(e){ if(!hold) return;
+  const power = Math.max(0, Math.min(8, Math.floor((time-hold.t0)*12)));
+  const k=hold.kid; hold=null;
+  if(k.state==='cock'){
+    if(power>=1) throwBall(k, power);
+    else { k.state='ready'; k.stateT=0; }
   }
-  drag=null; e.preventDefault();
-}
+  e.preventDefault(); }
 cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
 cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); cv.addEventListener('touchend',up);
 
 function click(e){ const p=pos(e);
   if(state==='title'){ startGame(); return; }
-  if(state==='end'){ if(p.x>W/2-110&&p.x<W/2+110&&p.y>H-116&&p.y<H-72){ round=1; startGame(); } }
-}
+  if(state==='end'){ if(p.x>W/2-110&&p.x<W/2+110&&p.y>H-116&&p.y<H-72){ level=1; score=0; startGame(); } } }
 function startGame(){ state='play'; audio(); try{ if(AC && AC.state==='suspended') AC.resume(); }catch(err){}
   reset(); const rot=document.getElementById('rot'); if(rot) rot.style.display='none'; }
-cv.addEventListener('mousedown', click);
-cv.addEventListener('touchend', (e)=>{ if(state!=='play') click(e); });
 
-// ---------- AI ----------
-function ballistic(x0,y0,x1,y1,sp){
-  const dx=x1-x0, dy=y1-y0;
-  const t = Math.max(18, Math.hypot(dx,dy)/sp);
-  return { vx: dx/t, vy: (dy - .5*G*t*t)/t };
+// ---------- green AI: the original random(10) state machine ----------
+function greenAI(k, ticks){
+  k.clock += ticks;
+  while(k.clock >= 5){ k.clock -= 5; greenTick(k); }
 }
-function aiUpdate(dt){
-  // SnowCraft-style rivals: sloppy aim in round 1, sharpening every round
-  const errX = Math.max(18, 170*Math.pow(.78, round-1));
-  const errY = Math.max(10, 38*Math.pow(.8, round-1));
-  const cdBase = Math.max(1.0, 3.2-(round-1)*.25);
-  for(const f of alive('e')){
-    if(f.frozen>0) continue;
-    f.cd -= dt;
-    if(f.cd<=0){
-      f.cd = cdBase + Math.random()*2;
-      const targets = alive('p'); if(!targets.length) return;
-      const t = targets[Math.floor(Math.random()*targets.length)];
-      const sp = 12 + Math.random()*4;
-      // SnowCraft-style misses: mostly short (splash in the valley), some long
-      const miss = Math.random();
-      let ax = t.x + (Math.random()-.5)*20;
-      if(miss < .58) ax += errX*Math.random();        // short -> no-man's land
-      else if(miss < .85) ax -= errX*.7*Math.random(); // overthrow past the line
-      const v = ballistic(f.x-12, f.y-30, ax, t.feet-22+(Math.random()-.5)*errY*2, sp);
-      balls.push({x:f.x-12, y:f.y-30, vx:v.vx, vy:v.vy, from:'e', r:9, spin:Math.random()*6});
-      sfxThrow();
-    }
+function greenTick(k){
+  if(k.stateT>0){ k.stateT--; if(k.stateT>0) return; }
+  switch(k.state){
+    case 'ready':
+      const roll = Math.random();
+      if(roll<.20){ k.state='windup'; k.stateT=5; }                       // original: 3 or 4 on random(10)
+      else if(roll<.30){ k.walkDir=-1; k.walkSteps = 8+Math.floor(Math.random()*18); k.state='walk'; }  // advance
+      else if(roll<.40){ k.walkDir = Math.random()<.5?1:-1; k.walkSteps = 5; k.state='walk'; }            // sidestep
+      break;
+    case 'windup': k.state='cock'; k.stateT=5+Math.floor(Math.random()*10); break;
+    case 'cock':
+      throwBall(k, 5+Math.floor(Math.random()*4)); // original: random(4)+4
+      break;
+    case 'toss': k.state='ready'; break;
+    case 'walk':
+      k.x += k.walkDir*3.2;
+      if(k.x > W-60) k.walkDir = -1;
+      if(k.x < 520){ k.state='windup'; k.stateT=5; }   // reached the line: set up to throw
+      kidFeet(k);
+      k.walkSteps--;
+      if(k.walkSteps<=0 || Math.random()<.05) k.state='ready';
+      break;
+    case 'ow': k.state='recover'; k.stateT=5; break;
+    case 'recover': k.state='ready'; break;
+    case 'down': k.state='ow'; k.stateT=15; break;
+    case 'daze': k.state='ready'; break;
   }
 }
-
-// ---------- bird power-ups ----------
-function birdUpdate(dt){
-  if(bird){
-    bird.x += bird.vx*dt*60; bird.flap += dt*9;
-    if(bird.x>W+80) bird=null;
-  } else {
-    birdTimer -= dt;
-    if(birdTimer<=0 && alive('e').length && alive('p').length){
-      const type = Math.random()<.5 ? 'flame' : 'frost';
-      bird = { x:-70, y:96+Math.random()*70, vx:1.9+Math.random()*.7, flap:0, type };
-      birdTimer = 12+Math.random()*10;
-      sfxBird();
-    }
-  }
-  for(const d of drops){
-    d.vy += .05; d.y += d.vy*dt*60; d.x += Math.sin(time*3+d.seed)*.4;
-    if(d.y >= terrainY(d.x)-10){
-      if(d.type==='frost'){
-        for(const f of alive('e')) f.frozen = 4.6;
-        sfxFreeze(); flash('RIVALS FROZEN!');
-      } else {
-        teamPower='flame'; sfxPower(); flash('FLAMING SNOWBALL READY!');
-      }
-      d.dead=true;
-    }
-  }
-  drops = drops.filter(d=>!d.dead);
-}
-let flashMsg='', flashT=0;
-function flash(m){ flashMsg=m; flashT=2.2; }
 
 // ---------- update ----------
+let flashMsg='', flashT=0, selfT=0;
+function flash(m){ flashMsg=m; flashT=2.2; }
 function update(dt){
   time+=dt;
   for(const f of flakes){ f.y+=f.v; f.x+=Math.sin(time*.8+f.drift)*.3; if(f.y>H){f.y=-4;f.x=Math.random()*W;} }
   flashT=Math.max(0,flashT-dt);
-  if(state==='round'){ roundT-=dt; if(roundT<=0){ state='play'; reset(); } return; }
-  if(state!=='play') return;
   shake=Math.max(0,shake-dt*30);
-  for(const f of fighters){
-    f.cd=Math.max(0,f.cd-dt); f.squash=Math.max(0,f.squash-dt*4); f.bobT+=dt*3;
-    if(f.frozen>0) f.frozen=Math.max(0,f.frozen-dt);
-  }
-  aiUpdate(dt); birdUpdate(dt);
-  // fixed-step ball physics: identical gameplay at 60fps desktop or throttled mobile
-  const steps = Math.max(1, Math.min(5, Math.round(dt/(1/60))||1));
-  const sdt = dt/steps;
-  for(let s=0; s<steps; s++){
-    for(const b of balls){
-      b.vy+=G; b.x+=b.vx*sdt*60; b.y+=b.vy*sdt*60; b.spin+=.3;
-      if(b.flame && Math.random()<.6) parts.push({x:b.x,y:b.y,vx:(Math.random()-.5)*2,vy:-Math.random()*2,r:1.5+Math.random()*3,life:.6,fire:true});
-      // bird hit (player balls only)
-      if(bird && b.from==='p' && Math.hypot(b.x-bird.x,b.y-bird.y)<30){
-        drops.push({x:bird.x, y:bird.y, vy:.4, type:bird.type, seed:Math.random()*6});
-        poof(bird.x,bird.y,10); sfxBird(); bird=null; b.dead=true; continue;
+  if(state==='banner'){ bannerT-=dt; if(bannerT<=0){ state='play'; } return; }
+  if(state==='celebrate'){ celebrate-=dt;
+    for(const k of greens()) k.bobT += dt*6;
+    if(celebrate<=0){ level++; reset(); state='banner'; bannerT=1.6; }
+    return; }
+  if(state!=='play') return;
+  for(const k of kids){ k.bobT+=dt*3; k.squash=Math.max(0,k.squash-dt*4); }
+  // kid ticks (every 5/60 s), ball ticks (every 2/60 s) — discrete like the original
+  const kidTicks = dt*60, ballTicks = dt*60;
+  for(const k of greens()){ if(k.alive) greenAI(k, kidTicks); }
+  for(const k of reds()){ if(k.state==='toss'||k.state==='daze'){ k.stateT -= dt*12;
+      if(k.stateT<=0){ k.state='ready'; } } }
+  // balls: rise phase then drop phase, fixed slopes, hits during rise only (as in source)
+  for(const b of balls){
+    b.t += ballTicks;
+    while(b.t >= 2){
+      b.t -= 2;
+      // authentic: rise phase (fixed slope, length = power x 2 steps), then drop (half speed)
+      if(b.phase==='rise'){
+        b.x += b.dir*24; b.y -= 12; b.steps--; b.spin+=.4;
+        if(b.steps<=0) b.phase='drop';
+      } else {
+        b.x += b.dir*12; b.y += 6; b.spin+=.4;
       }
-      // fighter hits
-      const targets = b.from==='p'?alive('e'):alive('p');
-      for(const t of targets){
-        if(Math.abs(b.x-t.x)<t.w/2 && b.y>t.feet-t.h && b.y<t.feet+14){
-          const dmg = b.flame ? 99 : 1;
-          t.hp -= dmg; t.squash=1; shake=8; sfxHit(); poof(b.x,b.y,14);
-          if(b.flame){ flash('BURIED IN ONE!'); parts.push({x:t.x,y:t.feet-40,vx:0,vy:-2,r:10,life:1,fire:true}); }
-          if(t.hp<=0 && t.alive){ t.alive=false; sfxBuried(); poof(t.x,t.feet-20,20); }
-          b.dead=true; break;
+      // hit check across the flight (arc adaptation of the original's rise-crossing)
+      const targets = b.from==='p' ? greens() : reds();
+      for(const k of targets){
+        if(!hittable(k)) continue;
+        if(Math.abs(b.x-k.x) < k.w/2+6 && b.y > k.feet-k.h-10 && b.y < k.feet+6){
+          kidHit(k, b); b.dead=true; break;
         }
       }
-      if(b.dead) continue;
-      // terrain
-      if(b.y >= terrainY(b.x)){ poof(b.x, terrainY(b.x), 8); b.dead=true; continue; }
-      if(b.x<-40||b.x>W+40) b.dead=true;
+      if(b.dead) break;
+      if(b.phase==='drop' && b.y >= terrainY(b.x)-2){ poof(b.x, terrainY(b.x), 10); b.dead=true; break; }
+      if(b.x<-40||b.x>W+40){ b.dead=true; break; }
     }
   }
   balls = balls.filter(b=>!b.dead);
   // particles
   for(const p of parts){ p.vy+=.12; p.x+=p.vx*dt*60; p.y+=p.vy*dt*60; p.life-=dt*1.8; }
   parts = parts.filter(p=>p.life>0);
-  // round flow
-  if(!alive('e').length){ round++; if(round>9){ winner='p'; state='end'; sfxWin(); } else { state='round'; roundT=1.8; sfxWin(); } }
-  else if(!alive('p').length){ winner='e'; state='end'; }
-  // selftest: auto-plays both sides for verification
+  // level flow (original Event_Loop)
+  if(!greens().some(k=>k.alive) && state==='play'){
+    score += levelKills; sfxWin(); state='celebrate'; celebrate=2.2;
+  } else if(!reds().some(k=>k.alive) && state==='play'){
+    score = (score + levelKills) * level; winner='e'; state='end'; celebrate=0;
+  }
+  // selftest: auto-plays like a human (drag-ish positioning + charged throws)
   if(SELFTEST){
     selfT-=dt;
-    if(selfT<=0){ selfT=.55;
-      const ps=alive('p'); if(ps.length){ const f=ps[Math.floor(Math.random()*ps.length)];
-        const es=alive('e'); if(es.length){ const t=es[Math.floor(Math.random()*es.length)];
-          const v=ballistic(f.x, f.y-30, t.x, t.feet-22, 17);
-          balls.push({x:f.x,y:f.y-30,vx:v.vx,vy:v.vy,from:'p',r:9,spin:0,flame:teamPower==='flame'});
-          if(teamPower==='flame') teamPower=null; } } }
+    if(selfT<=0){
+      selfT=.95;
+      const ps=reds().filter(k=>k.alive&&k.state==='ready');
+      const es=greens().filter(k=>k.alive);
+      if(ps.length&&es.length){
+        const k=ps[Math.floor(Math.random()*ps.length)];
+        const t=es[Math.floor(Math.random()*es.length)];
+        // simulate the full arc (rise + drop) to find a kid.x that splats on the target
+        const sim = (x0, p) => {
+          let x=x0, y=terrainY(x0)-20, steps=p*2;
+          while(x>-40 && x<W+40){
+            if(steps>0){ x+=24; y-=12; steps--; } else { x+=12; y+=6; }
+            if(y>=terrainY(x)-2) break;
+          }
+          return x;
+        };
+        let best=null;
+        for(let p=3; p<=8; p++){
+          for(let x=60; x<=460; x+=4){
+            const land = sim(x, p);
+            const err = Math.abs(land - t.x);
+            if(err < 14 && (!best || err < best.err)) best = {x, p, err};
+          }
+        }
+        if(best){ k.x = best.x; kidFeet(k); throwBall(k, best.p); }
+      }
+    }
   }
 }
 function poof(x,y,n){ for(let i=0;i<n;i++) parts.push({x,y,vx:(Math.random()-.5)*5,vy:-Math.random()*4-1,r:2+Math.random()*5,life:1}); }
-
 // ---------- draw: YETI HOMELAND ----------
 const stars = Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*300,r:.5+Math.random()*1.2,tw:Math.random()*6.28}));
 function drawBG(){
@@ -418,52 +429,59 @@ function drawFighter(f){
   }
   ctx.translate(f.x, f.feet+bob);
   ctx.scale(f.face*sq, 1/sq);
+  // authentic SnowCraft poses
+  if(f.state==='cock'){ ctx.rotate(-.22); }
+  else if(f.state==='toss'){ ctx.rotate(.28); }
+  else if(f.state==='windup'){ ctx.rotate(-.16); }
+  else if(f.state==='daze'){ ctx.rotate(.28*Math.sin(time*11)); }
+  else if(f.state==='ow'){ ctx.scale(1,.82); ctx.rotate(-.12); }
+  else if(f.state==='down'){ ctx.scale(1,.6); ctx.rotate(-.3); }
+  else if(f.state==='walk'){ ctx.rotate(.07*Math.sin(time*13)); }
   if(f.tint && FILTER_OK){ ctx.filter=`hue-rotate(${f.tint}deg) saturate(1.15)`; }
   ctx.drawImage(img, -img.width*.42*f.sc, -img.height*.84*f.sc, img.width*.84*f.sc, img.height*.84*f.sc);
   if(!FILTER_OK && f.tint){ ctx.fillStyle='#ff5d5d'; ctx.beginPath();
     ctx.moveTo(0,-f.h-6); ctx.lineTo(8,-f.h-16); ctx.lineTo(0,-f.h-26); ctx.lineTo(-8,-f.h-16);
     ctx.closePath(); ctx.fill(); }
   ctx.filter='none';
-  // frozen ice overlay
-  if(f.frozen>0){
-    ctx.fillStyle='rgba(150,220,255,.4)';
-    ctx.fillRect(-f.w/2-4, -f.h-8, f.w+8, f.h+12);
-    ctx.strokeStyle='rgba(230,250,255,.9)'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(-f.w/2, -f.h+6); ctx.lineTo(-f.w/2+8, -f.h+14); ctx.stroke();
-  }
-  // snow buildup by damage
-  if(f.hp<3){ ctx.fillStyle='rgba(255,255,255,.85)';
-    for(let i=0;i<(3-f.hp);i++){ ctx.beginPath(); ctx.ellipse(-14+i*16, -66*f.sc+((i*13)%18), 9, 5, 0, 0, 7); ctx.fill(); } }
-  // hp snowballs HUD above
-  ctx.fillStyle='rgba(13,27,42,.55)';
-  ctx.fillRect(-22, -f.h-22, 44, 12);
-  for(let i=0;i<3;i++){ ctx.beginPath();
-    ctx.fillStyle = i<f.hp ? '#7fd8ff' : 'rgba(255,255,255,.25)';
-    ctx.arc(-15+i*15, -f.h-16, 4.4, 0, 7); ctx.fill(); }
+  // snow buildup by damage (hits taken)
+  if(f.hits>0){ ctx.fillStyle='rgba(255,255,255,.9)';
+    for(let i=0;i<f.hits;i++){ ctx.beginPath(); ctx.ellipse(-12+i*14, -66*f.sc+((i*13)%14), 8, 4.5, 0, 0, 7); ctx.fill(); } }
+  // hits remaining pips
+  const rem = f.maxHits - f.hits;
+  const pipW = 11, px0 = -(f.maxHits*pipW)/2 + pipW/2;
+  ctx.fillStyle='rgba(13,27,42,.5)';
+  ctx.fillRect(-(f.maxHits*pipW)/2-4, -f.h-26, f.maxHits*pipW+8, 12);
+  for(let i=0;i<f.maxHits;i++){ ctx.beginPath();
+    ctx.fillStyle = i<rem ? (f.team==='p'?'#7fd8ff':'#a9e34b') : 'rgba(255,255,255,.25)';
+    ctx.arc(px0+i*pipW, -f.h-20, 3.8, 0, 7); ctx.fill(); }
   ctx.restore();
 }
 function drawAim(){
   if(state!=='play') return;
-  const t = drag? drag.t : nextThrower();
-  if(!drag && !t) return;
-  if(t){ // marker
-    const my = t.y-52 - (t.cd>0? 0:6+Math.sin(time*5)*3);
-    ctx.strokeStyle='rgba(255,120,60,.9)'; ctx.lineWidth=3;
-    ctx.beginPath(); ctx.moveTo(t.x-9,my-8); ctx.lineTo(t.x,my); ctx.lineTo(t.x+9,my-8); ctx.stroke();
+  // hover reticle over nearest ready red (the bullseye)
+  let hov=null, bd=70; const r=cv.getBoundingClientRect();
+  if(lastMouse.x>=0){
+    for(const k of reds()){ if(!k.alive || k.state!=='ready') continue;
+      const d=Math.hypot(lastMouse.x-k.x, lastMouse.y-(k.y-16));
+      if(d<bd){ bd=d; hov=k; } } }
+  const target = hold? hold.kid : hov;
+  if(target){
+    const ty = target.y-52 - 4;
+    ctx.save(); ctx.translate(target.x, ty);
+    ctx.strokeStyle='rgba(255,120,60,.95)'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(0,0,13,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0,0,3,0,7); ctx.fillStyle='rgba(255,120,60,.95)'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0,-19); ctx.lineTo(0,-9); ctx.moveTo(0,9); ctx.lineTo(0,19);
+    ctx.moveTo(-19,0); ctx.lineTo(-9,0); ctx.moveTo(9,0); ctx.lineTo(19,0); ctx.stroke();
+    ctx.restore();
   }
-  if(drag){
-    const dx=drag.x0-drag.x1, dy=drag.y0-drag.y1, pw=Math.min(1,Math.hypot(dx,dy)/240);
-    if(pw>.12){
-      const sp=8+pw*13, ang=Math.atan2(dy,dx);
-      let vx=Math.cos(ang)*sp, vy=Math.sin(ang)*sp, x=drag.t.x+20*Math.sign(dx||1), y=drag.t.y-24;
-      ctx.fillStyle= teamPower==='flame' ? 'rgba(255,170,60,.9)' : 'rgba(255,255,255,.85)';
-      for(let i=0;i<26;i++){ vy+=G; x+=vx; y+=vy; if(i%3===0){ ctx.beginPath(); ctx.arc(x,y,2.4,0,7); ctx.fill(); } if(y>terrainY(x)) break; }
-      // power meter
-      ctx.fillStyle='rgba(13,27,42,.5)'; ctx.fillRect(drag.t.x-30, drag.t.y-116, 60, 10);
-      ctx.fillStyle=pw>.85?'#ff5d5d':(pw>.5?'#ffb14d':'#7fff9e'); ctx.fillRect(drag.t.x-30, drag.t.y-116, 60*pw, 10);
-    }
-    ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.setLineDash([6,6]); ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(drag.x0,drag.y0); ctx.lineTo(drag.x1,drag.y1); ctx.stroke(); ctx.setLineDash([]);
+  // hold power meter 0-8 (authentic: power = hold time / 5 ticks, max 8)
+  if(hold){
+    const power = Math.max(0, Math.min(8, Math.floor((time-hold.t0)*12)));  // same rate as up(): ticks/5, max 8
+    const k=hold.kid, bx=k.x-34, by=k.feet-70;
+    ctx.fillStyle='rgba(13,27,42,.55)'; ctx.fillRect(bx-3, by-3, 10, 8*8+6);
+    for(let i=0;i<8;i++){ ctx.fillStyle = i<power ? (power>=7?'#ff5d5d':(power>=4?'#ffb14d':'#7fff9e')) : 'rgba(255,255,255,.18)';
+      ctx.fillRect(bx, by+i*8, 5, 6); }
   }
 }
 function drawBalls(){
@@ -526,39 +544,29 @@ function drawTitle(){
   ctx.font="12px sans-serif"; ctx.fillStyle='rgba(255,255,255,.65)'; ctx.textAlign='right';
   ctx.fillText(STAMP, W-10, H-10);
 }
-function drawRound(){
-  ctx.fillStyle='rgba(10,18,34,.55)'; ctx.fillRect(0,0,W,H);
-  bigText('ROUND '+round, 270, 70, '#ffd76d');
-  ctx.font="italic 24px 'Trebuchet MS',sans-serif"; ctx.textAlign='center'; ctx.fillStyle='#e6f2fa';
-  const tips=['The rival squad sharpens their aim...','They throw faster now. Stay frosty.','Snow deepens. Aim true.'];
-  ctx.fillText(tips[(round-2)%tips.length], W/2, 316);
+function drawBanner(){
+  ctx.fillStyle='rgba(10,18,34,.35)'; ctx.fillRect(0,0,W,H);
+  bigText('LEVEL '+level, 250, 72, '#ffd76d');
+  ctx.font="italic 22px 'Trebuchet MS',sans-serif"; ctx.textAlign='center'; ctx.fillStyle='#e6f2fa';
+  ctx.fillText(level===1 ? 'Drag a kid, HOLD to power up, release to throw.' : (greensPerLevel(level)+' rivals incoming.'), W/2, 320);
 }
 function drawEnd(){
   ctx.fillStyle='rgba(13,27,42,.45)'; ctx.fillRect(0,0,W,H);
   bigText(winner==='p'?'YOU WIN!':'BURIED...', 230, 70, winner==='p'?'#ffd76d':'#ffffff');
   ctx.font="italic 24px 'Trebuchet MS',sans-serif"; ctx.textAlign='center'; ctx.fillStyle='#e6f2fa';
   ctx.fillText(winner==='p'
-    ? 'Nine rounds of yeti country and you out-threw them all. Legendary.'
-    : 'The rival squad got you on round '+round+'. The mountain remembers.', W/2, 276);
+    ? 'You out-threw the whole mountain. Legendary.'
+    : 'The rival squad got you on level '+level+'. Final score: '+score, W/2, 276);
   ctx.fillStyle='rgba(255,255,255,.12)'; ctx.strokeStyle='#7fd8ff'; ctx.lineWidth=2;
   ctx.beginPath(); ctx.rect(W/2-110,H-116,220,44); ctx.fill(); ctx.stroke();
   ctx.font="bold 26px 'Trebuchet MS',sans-serif"; ctx.fillStyle='#7fd8ff'; ctx.fillText('REMATCH', W/2, H-85);
 }
 function drawHUD(){
-  if(state!=='play' && state!=='round') return;
+  if(state!=='play' && state!=='banner' && state!=='celebrate') return;
   ctx.font="bold 18px 'Trebuchet MS',sans-serif"; ctx.textAlign='left'; ctx.fillStyle='rgba(13,27,42,.75)';
-  ctx.fillText('YOUR SQUAD', 24, 40);
-  ctx.textAlign='right'; ctx.fillText('RIVAL SQUAD', W-24, 40);
-  ctx.textAlign='center'; ctx.fillStyle='rgba(13,27,42,.85)';
-  ctx.font="bold 20px 'Trebuchet MS',sans-serif"; ctx.fillText('ROUND '+round, W/2, 40);
-  if(teamPower==='flame'){
-    ctx.font="bold 16px 'Trebuchet MS',sans-serif"; ctx.fillStyle='#ff8c28';
-    ctx.fillText('FLAMING SNOWBALL ARMED', W/2, 62);
-  }
-  if(flashT>0){ ctx.globalAlpha=Math.min(1,flashT);
-    ctx.font="bold 22px 'Trebuchet MS',sans-serif"; ctx.fillStyle='#ffffff';
-    ctx.lineWidth=6; ctx.strokeStyle='rgba(13,27,42,.7)'; ctx.strokeText(flashMsg,W/2,92); ctx.fillText(flashMsg,W/2,92);
-    ctx.globalAlpha=1; }
+  ctx.fillText('LEVEL '+level, 24, 40);
+  ctx.textAlign='center'; ctx.fillText('SCORE '+score, W/2, 40);
+  ctx.textAlign='right'; ctx.fillText(greens().filter(k=>k.alive).length+' RIVALS LEFT', W-24, 40);
 }
 let last=0;
 function loop(ts){
@@ -566,10 +574,10 @@ function loop(ts){
   update(dt);
   ctx.save();
   if(shake>0) ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
-  drawBG(); for(const f of fighters) drawFighter(f);
-  drawBalls(); drawBird(); drawAim(); drawSnow();
+  drawBG(); for(const k of kids) drawFighter(k);
+  drawBalls(); drawAim(); drawSnow();
   if(state==='title') drawTitle();
-  if(state==='round') drawRound();
+  if(state==='banner') drawBanner();
   if(state==='end') drawEnd();
   drawHUD();
   ctx.restore();
