@@ -233,30 +233,34 @@ function update(dt){
     if(f.frozen>0) f.frozen=Math.max(0,f.frozen-dt);
   }
   aiUpdate(dt); birdUpdate(dt);
-  // balls
-  for(const b of balls){
-    b.vy+=G; b.x+=b.vx*dt*60; b.y+=b.vy*dt*60; b.spin+=.3;
-    if(b.flame && Math.random()<.6) parts.push({x:b.x,y:b.y,vx:(Math.random()-.5)*2,vy:-Math.random()*2,r:1.5+Math.random()*3,life:.6,fire:true});
-    // bird hit (player balls only)
-    if(bird && b.from==='p' && Math.hypot(b.x-bird.x,b.y-bird.y)<30){
-      drops.push({x:bird.x, y:bird.y, vy:.4, type:bird.type, seed:Math.random()*6});
-      poof(bird.x,bird.y,10); sfxBird(); bird=null; b.dead=true; continue;
-    }
-    // fighter hits
-    const targets = b.from==='p'?alive('e'):alive('p');
-    for(const t of targets){
-      if(Math.abs(b.x-t.x)<t.w/2 && b.y>t.feet-t.h && b.y<t.feet+14){
-        const dmg = b.flame ? 99 : 1;
-        t.hp -= dmg; t.squash=1; shake=8; sfxHit(); poof(b.x,b.y,14);
-        if(b.flame){ flash('BURIED IN ONE!'); parts.push({x:t.x,y:t.feet-40,vx:0,vy:-2,r:10,life:1,fire:true}); }
-        if(t.hp<=0 && t.alive){ t.alive=false; sfxBuried(); poof(t.x,t.feet-20,20); }
-        b.dead=true; break;
+  // fixed-step ball physics: identical gameplay at 60fps desktop or throttled mobile
+  const steps = Math.max(1, Math.min(5, Math.round(dt/(1/60))||1));
+  const sdt = dt/steps;
+  for(let s=0; s<steps; s++){
+    for(const b of balls){
+      b.vy+=G; b.x+=b.vx*sdt*60; b.y+=b.vy*sdt*60; b.spin+=.3;
+      if(b.flame && Math.random()<.6) parts.push({x:b.x,y:b.y,vx:(Math.random()-.5)*2,vy:-Math.random()*2,r:1.5+Math.random()*3,life:.6,fire:true});
+      // bird hit (player balls only)
+      if(bird && b.from==='p' && Math.hypot(b.x-bird.x,b.y-bird.y)<30){
+        drops.push({x:bird.x, y:bird.y, vy:.4, type:bird.type, seed:Math.random()*6});
+        poof(bird.x,bird.y,10); sfxBird(); bird=null; b.dead=true; continue;
       }
+      // fighter hits
+      const targets = b.from==='p'?alive('e'):alive('p');
+      for(const t of targets){
+        if(Math.abs(b.x-t.x)<t.w/2 && b.y>t.feet-t.h && b.y<t.feet+14){
+          const dmg = b.flame ? 99 : 1;
+          t.hp -= dmg; t.squash=1; shake=8; sfxHit(); poof(b.x,b.y,14);
+          if(b.flame){ flash('BURIED IN ONE!'); parts.push({x:t.x,y:t.feet-40,vx:0,vy:-2,r:10,life:1,fire:true}); }
+          if(t.hp<=0 && t.alive){ t.alive=false; sfxBuried(); poof(t.x,t.feet-20,20); }
+          b.dead=true; break;
+        }
+      }
+      if(b.dead) continue;
+      // terrain
+      if(b.y >= terrainY(b.x)){ poof(b.x, terrainY(b.x), 8); b.dead=true; continue; }
+      if(b.x<-40||b.x>W+40) b.dead=true;
     }
-    if(b.dead) continue;
-    // terrain
-    if(b.y >= terrainY(b.x)){ poof(b.x, terrainY(b.x), 8); b.dead=true; continue; }
-    if(b.x<-40||b.x>W+40) b.dead=true;
   }
   balls = balls.filter(b=>!b.dead);
   // particles
