@@ -62,7 +62,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 960, H = 600, G = 0.42;
-const STAMP = SELFTEST ? 'v11.1 TEST' : 'v11.1';
+const STAMP = SELFTEST ? 'v11.2 TEST' : 'v11.2';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,436],[120,424],[240,438],[360,478],[480,492],[600,478],[720,440],[840,424],[960,438]];
@@ -108,7 +108,7 @@ function reds(){ return kids.filter(k=>k.team==='p'); }
 function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
   kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null;
-  const pk=['hat','lilfoot3','crown'], psc=[.62,.60,.60];
+  const pk=['hat','hat','crown'], psc=[.62,.58,.60];
   [120,190,258].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i])));
   const gd = greensPerLevel(level);
   for(let i=0;i<gd;i++){
