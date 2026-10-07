@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Snowball Wars - Lil Foots</title>
+<title>BIG Entertainment Presents: Lil Foot's SnowBall Wars</title>
 <style>
   html,body{margin:0;padding:0;background:#0d1524;height:100%;overflow:hidden;font-family:'Trebuchet MS','Verdana',sans-serif}
   #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
@@ -63,7 +63,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v12.2 TEST' : 'v12.2';
+const STAMP = SELFTEST ? 'v14 TEST' : 'v14';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,436],[180,424],[360,438],[540,478],[720,492],[900,478],[1080,440],[1260,424],[1440,438]];
@@ -93,9 +93,10 @@ function sfxFreeze(){ tone(1800,2400,.35,'sine',.08); tone(2400,3200,.3,'sine',.
 // ---------- entities: faithful port of the 1999 SnowCraft Lingo source ----------
 // RED = your 3 kids, 2 hits each. GREEN = rival wave, 3 hits each (ow -> down -> dead).
 // You drag a kid & hold to charge power 0-8; release lobs a fixed-slope snowball (distance = power).
+const ASP = { hat:.653, whitey:.453, crown:.658, green:.78 };
 function mkKid(key, x, team, tint, sc){
   const feet = terrainY(x);
-  return { key, x, feet, y:feet-30, w:34*sc, h:50*sc, sc, team, tint,
+  return { key, x, feet, y:feet-30, w:50*sc*(ASP[key]||.68), h:50*sc, sc, team, tint,
            hits:0, maxHits: team==='p'?2:3,
            state:'ready', stateT:0, clock:Math.random(), walkDir:0, walkSteps:0,
            face: team==='p'?1:-1, alive:true, squash:0, bobT:Math.random()*6.28 };
@@ -536,10 +537,13 @@ function bigText(txt,y,size,fill){ ctx.font=`bold ${size}px 'Trebuchet MS',sans-
   ctx.textAlign='center'; ctx.lineWidth=8; ctx.strokeStyle='rgba(13,27,42,.8)';
   ctx.strokeText(txt,W/2,y); ctx.fillStyle=fill; ctx.fillText(txt,W/2,y); }
 function drawTitle(){
-  bigText('SNOWBALL WARS', 128, 78, '#ffffff');
-  ctx.font="italic 30px 'Trebuchet MS',sans-serif"; ctx.textAlign='center';
+  ctx.font="italic 26px 'Trebuchet MS',sans-serif"; ctx.textAlign='center';
   ctx.lineWidth=6; ctx.strokeStyle='rgba(13,27,42,.75)';
-  ctx.strokeText("Season's Greetings from Lil Foots",W/2,170); ctx.fillStyle='#ffd76d'; ctx.fillText("Season's Greetings from Lil Foots",W/2,170);
+  ctx.strokeText('BIG ENTERTAINMENT PRESENTS',W/2,96); ctx.fillStyle='#ffd76d'; ctx.fillText('BIG ENTERTAINMENT PRESENTS',W/2,96);
+  bigText("Lil Foot's SnowBall Wars", 156, 68, '#ffffff');
+  ctx.font="italic 26px 'Trebuchet MS',sans-serif"; ctx.textAlign='center';
+  ctx.lineWidth=6; ctx.strokeStyle='rgba(13,27,42,.75)';
+  ctx.strokeText("Season's Greetings from Lil Foots",W/2,200); ctx.fillStyle='#ffd76d'; ctx.fillText("Season's Greetings from Lil Foots",W/2,200);
   ctx.font="italic 21px 'Trebuchet MS',sans-serif"; ctx.fillStyle='rgba(13,27,42,.7)'; ctx.textAlign='center';
   ctx.fillText('Bury the rival squad. Last team standing wins the hill.', W/2, 540);
   ctx.fillText('Drag a kid to move them — HOLD to power up, release to throw.', W/2, 566);
