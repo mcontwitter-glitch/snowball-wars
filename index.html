@@ -65,7 +65,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v28 TEST' : 'v28';
+const STAMP = SELFTEST ? 'v29 TEST' : 'v29';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,244],[180,252],[360,266],[540,286],[720,312],[900,344],[1080,382],[1260,424],[1440,470]];
@@ -214,7 +214,7 @@ function redTick(k){   // source red script: no idle behavior - only hit/daze st
     case 'hit': k.state='hit2'; k.stateT=Math.max(0,k.hitPend||0); break;
     case 'hit2':
       k.hits++;
-      if(k.hits>=k.maxHits){ k.alive=false; k.state='dead'; sfxBuried(); poof(k.x,k.feet-16,18); }
+      if(k.hits>=k.maxHits){ k.alive=false; k.state='dead'; sfxBuried(); explodeKid(k); }
       else { k.state='daze'; k.stateT=45; sfxBird(); }   // source: bird_tweets; mySteps=15 decrements once per FULL daze1->daze2->daze3 cycle (1 tick each), so 15 x 3 = 45 ticks = 3.75s
       break;
   }
@@ -264,7 +264,7 @@ function greenTick(k){
     case 'hit': k.state='hit2'; k.stateT=Math.max(0,k.hitPend||0); break;
     case 'hit2':
       k.hits++;
-      if(k.hits>=k.maxHits){ k.alive=false; k.state='dead'; levelKills++; sfxBuried(); poof(k.x,k.feet-16,18); }
+      if(k.hits>=k.maxHits){ k.alive=false; k.state='dead'; levelKills++; sfxBuried(); explodeKid(k); }
       else if(k.hits===2){ k.state='down'; k.stateT=25; sfxDown(); }   // source: hit2 sound, down 25
       else { k.state='ow'; k.stateT=10; }
       break;
@@ -304,7 +304,7 @@ function update(dt){
       if(b.trail<=0){ b.trail=.03; parts.push({x:b.x+(Math.random()-.5)*30,y:b.y+(Math.random()-.5)*30,vx:0,vy:-.5,r:3+Math.random()*6,life:.9}); }
       for(const k of greens()){ if(!k.alive) continue;
         if(Math.hypot(b.x-k.x, b.y-(k.feet-k.h*.5)) < b.r+34){
-          k.alive=false; k.state='dead'; levelKills++; sfxBuried(); poof(k.x,k.feet-16,24); shake=Math.max(shake,10); } }
+          k.alive=false; k.state='dead'; levelKills++; sfxBuried(); explodeKid(k,26); shake=Math.max(shake,10); } }
       if(b.x<-120||b.x>W+120) b.dead=true;
       continue; }
     b.t += ballTicks;
@@ -348,7 +348,17 @@ function update(dt){
         if(bf.thrown>=3){ bf.phase='sink'; bf.t=0; } } }
     else if(bf.phase==='sink' && bf.t>=0.9){ bf=null; } }
   // particles
-  for(const p of parts){ p.vy+=.12; p.x+=p.vx*dt*60; p.y+=p.vy*dt*60; p.life-=dt*1.8; }
+  for(const p of parts){
+    if(p.piece){
+      if(!p.settled){
+        p.vy+=.22; p.vx*=.985; p.rot+=p.vr*dt*60;
+        p.x+=p.vx*dt*60; p.y+=p.vy*dt*60;
+        const gy = p.settleY || (p.settleY = terrainY(p.x)-4);
+        if(p.y>=gy){ p.y=gy; p.settled=true; poof(p.x,gy,3); }
+      }
+      p.life-=dt*.55;
+    } else { p.vy+=.12; p.x+=p.vx*dt*60; p.y+=p.vy*dt*60; p.life-=dt*1.8; }
+  }
   parts = parts.filter(p=>p.life>0);
   // level flow (original Event_Loop)
   if(!greens().some(k=>k.alive) && state==='play'){
@@ -385,6 +395,25 @@ function update(dt){
   }
 }
 function poof(x,y,n){ for(let i=0;i<n;i++) parts.push({x,y,vx:(Math.random()-.5)*5,vy:-Math.random()*4-1,r:2+Math.random()*5,life:1}); }
+// fall to pieces (Mau5, Oct 8): the kid bursts into tumbling chunks of their own art, which settle into the snow before the mound
+function explodeKid(k, nPieces){
+  poof(k.x, k.feet-14, 14);
+  const img = IMAGES[k.key];
+  if(!img || (!img.ok && !img.complete)) return;
+  const cols=4, rows=3, sw=img.width/cols, sh=img.height/rows;
+  const W = img.width*.84*k.sc, H = img.height*.84*k.sc;
+  for(let c=0;c<cols;c++) for(let r=0;r<rows;r++){
+    const jx=(Math.random()-.5)*sw*.3, jy=(Math.random()-.5)*sh*.3;
+    const sx=c*sw+jx*.5, sy=r*sh+jy*.5, s2=sw*.72, s3=sh*.72;
+    const cx = k.x + ( -W/2 + (sx+s2/2)*.84*k.sc );
+    const cy = k.feet + ( -H + (sy+s3/2)*.84*k.sc );
+    const out = (cx-k.x)*.035 + (Math.random()-.5)*2.6;
+    parts.push({ piece:true, imgKey:k.key, sc:k.sc, sx, sy, sw:s2, sh:s3,
+      x:cx, y:cy, vx:out, vy:-2.2-Math.random()*4.4,
+      rot:(Math.random()-.5)*.6, vr:(Math.random()-.5)*.22, life:2.8, settled:false });
+  }
+  if(nPieces) poof(k.x, k.feet-30, nPieces);
+}
 // ---------- draw: YETI HOMELAND ----------
 const stars = Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*300,r:.5+Math.random()*1.2,tw:Math.random()*6.28}));
 function drawBG(){
@@ -529,7 +558,9 @@ function drawFighter(f){
   else if(f.state==='hit'||f.state==='hit2'){ ctx.rotate(.1*td); ctx.scale(1,.94); }
   else if(f.state==='daze'){ ctx.rotate(.28*Math.sin(time*25)); }
   else if(f.state==='ow'){ ctx.scale(1,.82); ctx.rotate(-.12); }
-  else if(f.state==='down'){ ctx.scale(1,.6); ctx.rotate(-.3); }
+  else if(f.state==='down'){ // knocked flat on the back (source: authored "G down" lying pose — never a shrink)
+    ctx.rotate((f.team==='p'?1:-1)*1.45); ctx.translate(0,-9);
+    ctx.fillStyle='rgba(244,249,252,.85)'; ctx.beginPath(); ctx.ellipse(6,4,26*f.sc,10*f.sc,0,0,7); ctx.fill(); }
   else if(f.state==='walk'){ ctx.rotate(.07*Math.sin(time*13)); }
   if(f.tint && FILTER_OK){ ctx.filter=`hue-rotate(${f.tint}deg) saturate(1.15)`; }
   ctx.drawImage(img, -img.width*.42*f.sc, -img.height*.84*f.sc, img.width*.84*f.sc, img.height*.84*f.sc);
@@ -558,7 +589,7 @@ function drawAim(){
     for(const k of reds()){ if(!k.alive || k.state!=='ready') continue;
       const d=Math.hypot(lastMouse.x-k.x, lastMouse.y-(k.y-k.h*.3));
       if(d<bd){ bd=d; hov=k; } } }
-  const target = hold? hold.kid : hov;
+  const target = hold? null : hov;   // while holding, the drag circle + meter take over
   if(target){
     const ty = target.y-target.h-8;
     ctx.save(); ctx.translate(target.x, ty);
@@ -568,14 +599,6 @@ function drawAim(){
     ctx.beginPath(); ctx.moveTo(0,-19); ctx.lineTo(0,-9); ctx.moveTo(0,9); ctx.lineTo(0,19);
     ctx.moveTo(-19,0); ctx.lineTo(-9,0); ctx.moveTo(9,0); ctx.lineTo(19,0); ctx.stroke();
     ctx.restore();
-  }
-  // hold power meter 0-8 (authentic: power = hold time / 5 ticks, max 8)
-  if(hold){
-    const power = Math.max(0, Math.min(8, Math.floor((time-hold.t0)*12)));  // same rate as up(): ticks/5, max 8
-    const k=hold.kid, bx=k.x-34, by=k.feet-70;
-    ctx.fillStyle='rgba(13,27,42,.55)'; ctx.fillRect(bx-3, by-3, 10, 8*8+6);
-    for(let i=0;i<8;i++){ ctx.fillStyle = i<power ? (power>=7?'#ff5d5d':(power>=4?'#ffb14d':'#7fff9e')) : 'rgba(255,255,255,.18)';
-      ctx.fillRect(bx, by+i*8, 5, 6); }
   }
 }
 function drawBigfoot(){
@@ -616,9 +639,17 @@ function drawBalls(){
     }
     ctx.restore();
   }
-  for(const p of parts){ ctx.globalAlpha=Math.max(0,p.life);
-    ctx.fillStyle = p.fire ? '#ffb14d' : '#fff';
-    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill(); ctx.globalAlpha=1; }
+  for(const p of parts){ ctx.globalAlpha=Math.max(0,Math.min(1,p.life));
+    if(p.piece){
+      const im = IMAGES[p.imgKey]; if(!im || (!im.ok && !im.complete)){ ctx.globalAlpha=1; continue; }
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.drawImage(im, p.sx, p.sy, p.sw, p.sh, -p.sw*.42*p.sc, -p.sh*.42*p.sc, p.sw*.84*p.sc, p.sh*.84*p.sc);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = p.fire ? '#ffb14d' : '#fff';
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill();
+    }
+    ctx.globalAlpha=1; }
 }
 function drawBird(){
   if(!bird) return;
@@ -644,16 +675,31 @@ function drawBird(){
   }
 }
 
-function drawDragUI(){ // finger/mouse drag indicator: arrow + charge ring over the held kid
+function drawDragUI(){ // Mau5: highlight circle around the selected kid + power meter in that circle
   if(!hold || state!=='play') return;
   const k = hold.kid; if(!k.alive) return;
-  const pw = Math.max(0, Math.min(8, Math.floor((time-hold.t0)*12)));
-  const mx = k.x, my = k.feet - k.h*2.45 - 46;
-  ctx.save(); ctx.globalAlpha=.95;
-  ctx.fillStyle='#7fd8ff';
-  ctx.beginPath(); ctx.moveTo(mx,my+10); ctx.lineTo(mx-10,my-4); ctx.lineTo(mx+10,my-4); ctx.closePath(); ctx.fill();
-  if(pw>0){ ctx.strokeStyle='rgba(127,216,255,.9)'; ctx.lineWidth=4;
-    ctx.beginPath(); ctx.arc(mx,my-26,14,-Math.PI/2,-Math.PI/2+(pw/8)*Math.PI*2); ctx.stroke(); }
+  const pw = Math.max(0, Math.min(8, Math.floor((time-hold.t0)*12)));  // same charge rate as up()
+  const kidH = 126*k.sc, r = kidH*.58, cy = k.feet - kidH/2;            // ring wraps the character
+  const col = pw>=8 ? '#ff5d5d' : pw>=6 ? '#ffb14d' : pw>=3 ? '#ffe98a' : '#7fff9e';
+  ctx.save(); ctx.translate(k.x, cy);
+  // selection highlight ring
+  ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=2.5;
+  ctx.setLineDash([7,7]);
+  ctx.beginPath(); ctx.arc(0,0,r,0,7); ctx.stroke(); ctx.setLineDash([]);
+  // power meter: speedometer arc inside the ring (opens at the bottom)
+  const a0 = Math.PI*.75;
+  ctx.strokeStyle='rgba(13,27,42,.45)'; ctx.lineWidth=7; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(0,0,r-8,a0,a0+Math.PI*1.5); ctx.stroke();
+  if(pw>0){ ctx.strokeStyle=col;
+    ctx.beginPath(); ctx.arc(0,0,r-8,a0,a0+(pw/8)*Math.PI*1.5); ctx.stroke();
+    if(pw>=8){ ctx.shadowColor=col; ctx.shadowBlur=16; ctx.stroke(); ctx.shadowBlur=0; } }
+  // power readout in the circle's bottom gap
+  const py = r-8;
+  ctx.fillStyle='rgba(13,27,42,.78)'; ctx.fillRect(-25,py-9,50,18);
+  ctx.strokeStyle=col; ctx.lineWidth=1; ctx.strokeRect(-25,py-9,50,18);
+  ctx.fillStyle=col; ctx.font='bold 13px "Trebuchet MS",sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(pw+' / 8', 0, py+.5);
   ctx.restore(); }
 
 function drawSnow(){ ctx.fillStyle='rgba(255,255,255,.8)';
