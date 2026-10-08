@@ -74,7 +74,7 @@ const TPTS = [[0,GROUND_Y],[180,GROUND_Y],[360,GROUND_Y],[540,GROUND_Y],[720,GRO
 // original stage 594x322 scaled to 1440x660; ball slope tuned to this field's tilt (slope .16):
 // a power-5 ball from the front line lands in the rival cluster, power 8 overshoots, like the source's tuning
 const BALL_DX = 62.5, BALL_DY = 0; // flat field: level lobs, power = range (source had no gravity)
-const MOUNDS = [90,650,790,1350].map(x=>({x, w:140, h:96})); // Mau5's card (Oct 8): two mounds on EACH side - one beyond each squad + one inboard bracket, all four visible // Mau5 (Oct 8): single-screen flat side-view arena with FOUR snowdrift obstacles, two per side of center
+const MOUNDS = [580,950].map(x=>({x, w:130, h:70})); // photo-measured: green-side drift ~40% width near the greens, red-side ~66% near the trio, clear center gap // Mau5's re-sent reference settles it: TWO kidney drifts TOTAL - one near each team, offset from center toward the squads (620 green side, 910 red side) // Mau5's card (Oct 8): two mounds on EACH side - one beyond each squad + one inboard bracket, all four visible // Mau5 (Oct 8): single-screen flat side-view arena with FOUR snowdrift obstacles, two per side of center
 function moundSurface(x){ // drift profile: parabola spanning [x-w, x+w], apex h at center
   for(const m of MOUNDS){ const dx = Math.abs(x-m.x); if(dx < m.w) return terrainY(x) - m.h*(1-(dx/m.w)*(dx/m.w)); }
   return null;
@@ -457,19 +457,32 @@ function tree(x,y,h,s){
 }
 function bankY(x){ return terrainY(x) - 92 + 10*Math.sin(x*0.004); }
 function drift(x, w, h){
+  // Mau5's reference: lumpy KIDNEY-shaped drift (matches the card mounds) — bumpy top with a
+  // sunken middle dent, bumpy lower edge kissing the ground, blue-gray underside, ground shadow
   const y = terrainY(x);
-  // soft grey drop shadow, offset to the bottom-right like the card
-  ctx.fillStyle='rgba(120,130,142,.20)';
+  const R=(n)=>{ const v=Math.sin(x*.13+n*37.7)*43758.5; return v-Math.floor(v); };
+  ctx.fillStyle='rgba(120,130,142,.20)';                    // soft grey drop shadow, offset bottom-right like the card
   ctx.beginPath(); ctx.ellipse(x+10, y+5, w*1.04, 8, 0, 0, 7); ctx.fill();
-  // mound body: white crest fading into light-grey at the base
-  const g = ctx.createLinearGradient(0, y-h, 0, y+2);
-  g.addColorStop(0,'#ffffff'); g.addColorStop(.62,'#f4f8fb'); g.addColorStop(1,'#dbe4ec');
-  ctx.fillStyle=g;
-  ctx.beginPath(); ctx.moveTo(x-w, y+2);
-  ctx.quadraticCurveTo(x, y-h, x+w, y+2); ctx.closePath(); ctx.fill();
-  // crisp light-grey rim so the crescent reads against pure white
-  ctx.strokeStyle='rgba(150,162,176,.7)'; ctx.lineWidth=2.5;
-  ctx.beginPath(); ctx.moveTo(x-w, y+2); ctx.quadraticCurveTo(x, y-h, x+w, y+2); ctx.stroke();
+  const N=9;
+  const bumps=[];
+  for(let i=0;i<N;i++){
+    const t=i/(N-1);
+    let bx=x-w+t*2*w, br=h*(.30+.26*R(i+9)), by=y+2-br - Math.sin(t*Math.PI)*h*(.62+.38*R(i));
+    if(i===4){ by = Math.max(by, y-h*.15); }                // kidney dent: middle bump sinks
+    bumps.push([bx,by,br]);
+  }
+  ctx.save();
+  ctx.beginPath();                                          // soft blue-gray rim so the lump reads on pure white
+  bumps.forEach(([bx,by,br])=>{ ctx.moveTo(bx+br+3,by); ctx.arc(bx,by,br+3,0,7); });
+  ctx.fillStyle='rgba(150,172,198,.55)'; ctx.fill();
+  ctx.beginPath();
+  bumps.forEach(([bx,by,br])=>{ ctx.moveTo(bx+br,by); ctx.arc(bx,by,br,0,7); });
+  ctx.fillStyle='#feffff'; ctx.fill();
+  ctx.globalCompositeOperation='source-atop';               // underside-only shading, clipped to the blob
+  const ug=ctx.createLinearGradient(0, y-h*.32, 0, y+3);
+  ug.addColorStop(0,'rgba(146,172,200,0)'); ug.addColorStop(1,'rgba(146,172,200,.55)');
+  ctx.fillStyle=ug; ctx.fillRect(x-w*1.1, y-h, w*2.2, h+6);
+  ctx.restore();
 }
 function fence(){
   const N=13;
