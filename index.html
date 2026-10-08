@@ -44,7 +44,8 @@ const SPRITES = {
   scarf: 'sprite_scarf.png?'+SPRITE_V,
   lilfoot3: 'sprite_lilfoot3.png?'+SPRITE_V,
   whitey: 'sprite_whitey.png?'+SPRITE_V,
-  green: 'sprite_green.png?'+SPRITE_V
+  green: 'sprite_green.png?'+SPRITE_V,
+  bigfoot:'sprite_bigfoot.png?v26'
 };
 const IMAGES = {};
 const SPRITE_KEYS = Object.keys(SPRITES);
@@ -64,7 +65,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v25 TEST' : 'v25';
+const STAMP = SELFTEST ? 'v26 TEST' : 'v26';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,244],[180,252],[360,266],[540,286],[720,312],[900,344],[1080,382],[1260,424],[1440,470]];
@@ -99,6 +100,9 @@ function sfxWin(){ [523,659,784,1047].forEach((f,i)=>{ tone(f,f,.2,'square',.09)
 function sfxBird(){ tone(1200,700,.09,'square',.06); tone(1400,900,.09,'square',.05); }
 function sfxPower(){ [660,880,1320].forEach((f,i)=>{ tone(f,f,.18,'triangle',.1); }); }
 function sfxFreeze(){ tone(1800,2400,.35,'sine',.08); tone(2400,3200,.3,'sine',.05); }
+function sfxRoar(){ tone(150,55,.6,'sawtooth',.3); tone(95,42,.75,'square',.16); }
+function sfxMega(){ tone(520,80,.32,'sawtooth',.24); }
+function startBigfoot(){ bf={t:0, phase:'rise', x:1230, thrown:0}; streak=0; }
 
 // ---------- entities: faithful port of the 1999 SnowCraft Lingo source ----------
 // RED = your 3 kids, 2 hits each. GREEN = rival wave, 3 hits each (ow -> down -> dead).
@@ -113,13 +117,14 @@ function mkKid(key, x, team, tint, sc){
 }
 let kids=[], balls=[], parts=[], flakes=[], shake=0, state='title', time=0;
 let level=1, score=0, levelKills=0, winner=null, bannerT=0, celebrate=0;
+let streak=0; const STREAK_GOAL=10; let bf=null;   // Mau5's idea: 10 hits in a row = Lil Foot power-up
 let hold=null; // {kid, t0}
 const lastMouse={x:-1,y:-1};
 function greensPerLevel(L){ return Math.min(12, 1+2*L); } // 3,5,7,9,11,12,12...
 function reds(){ return kids.filter(k=>k.team==='p'); }
 function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
-  kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null;
+  kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null; streak=0; bf=null;
   const pk=['hat','whitey','crown'], psc=[2.1,1.97,2.06]; // reference scale: kids ~19% of screen height, big and readable
   [1245,1125,1000].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i]))); // reference: reds 62-87% width, staggered diagonal lower-right
   const gd = greensPerLevel(level);
@@ -148,6 +153,10 @@ function hittable(k){
 }
 function kidHit(k, b){
   k.squash=1; shake=7; sfxHit(); poof(b.x,b.y,12);
+  // streak: consecutive landed hits with your balls (mega balls don't count)
+  if(k.team==='e' && b && b.from==='p'){ streak++;
+    if(streak>=STREAK_GOAL && !bf && greens().some(g=>g.alive)) startBigfoot(); }
+  if(k.team==='p') streak=0;
   // source: a ball on a held red interrupts the drag (the stillDown loop exits when memberNum >= "R hit")
   if(k.team==='p'){ if(hold && hold.kid===k) hold=null; if(fireId!==null && actKid===k) fireId=null; }
   // re-hit during the stagger just restarts the flinch - it does not stack (re-setting member "G hit")
@@ -328,11 +337,19 @@ function update(dt){
   // (hits only while myRange>0), then the drop/splat/melt members keep flying at HALF speed
   // while the ball shrinks away. No gravity, no ground: aim = kid placement, power = range.
   for(const b of balls){
+    if(b.mega){ // Lil Foot mega snowball: buries ANY rival it touches, even a downed one
+      b.x += b.vx*dt; b.y += b.vy*dt; b.trail -= dt;
+      if(b.trail<=0){ b.trail=.03; parts.push({x:b.x+(Math.random()-.5)*30,y:b.y+(Math.random()-.5)*30,vx:0,vy:-.5,r:3+Math.random()*6,life:.9}); }
+      for(const k of greens()){ if(!k.alive) continue;
+        if(Math.hypot(b.x-k.x, b.y-(k.feet-k.h*.5)) < b.r+34){
+          k.alive=false; k.state='dead'; levelKills++; sfxBuried(); poof(k.x,k.feet-16,24); shake=Math.max(shake,10); } }
+      if(b.x<-120||b.x>W+120) b.dead=true;
+      continue; }
     b.t += ballTicks;
     while(b.t >= 2){
       b.t -= 2;
       if(b.phase==='rise'){
-        if(b.steps<=0){ b.phase='drop'; }
+        if(b.steps<=0){ b.phase='drop'; if(b.from==='p') streak=0; }  // a miss breaks the streak
         else {
           b.x += b.dir*BALL_DX; b.y += b.dir*BALL_DY; b.steps--; b.spin+=.4;
           const targets = b.from==='p' ? greens() : reds();
@@ -353,6 +370,21 @@ function update(dt){
     }
   }
   balls = balls.filter(b=>!b.dead);
+  // Lil Foot power-up sequence
+  if(bf){ bf.t += dt;
+    if(bf.phase==='rise' && bf.t>=0.9){ bf.phase='roar'; bf.t=0; shake=12; sfxRoar(); flash('LIL FOOT POWER-UP!'); }
+    else if(bf.phase==='roar' && bf.t>=0.7){ bf.phase='throw'; bf.t=0; }
+    else if(bf.phase==='throw'){
+      if(bf.t >= 0.5){ bf.t-=0.5; bf.thrown++;
+        const targets = greens().filter(g=>g.alive);
+        if(targets.length){ const k = targets[Math.floor(Math.random()*targets.length)];
+          const sx = bf.x-105, sy = bankY(bf.x)-95;
+          const tx = k.x + (Math.random()-.5)*50, ty = k.feet-k.h*.5;
+          const d = Math.hypot(tx-sx,ty-sy)||1;
+          balls.push({x:sx,y:sy,vx:(tx-sx)/d*1150,vy:(ty-sy)/d*1150,dir:-1,from:'p',mega:true,r:42,spin:0,t:0,trail:0,phase:'rise',steps:0,dropSteps:0});
+          sfxMega(); shake=Math.max(shake,6); }
+        if(bf.thrown>=3){ bf.phase='sink'; bf.t=0; } } }
+    else if(bf.phase==='sink' && bf.t>=0.9){ bf=null; } }
   // particles
   for(const p of parts){ p.vy+=.12; p.x+=p.vx*dt*60; p.y+=p.vy*dt*60; p.life-=dt*1.8; }
   parts = parts.filter(p=>p.life>0);
@@ -584,10 +616,32 @@ function drawAim(){
       ctx.fillRect(bx, by+i*8, 5, 6); }
   }
 }
+function drawBigfoot(){
+  if(!bf) return; const img = IMAGES.bigfoot;
+  const clipY = bankY(bf.x)-6;
+  let lift = bf.phase==='rise' ? Math.min(1, bf.t/0.85) : bf.phase==='sink' ? Math.max(0,1-bf.t/0.85) : 1;
+  const hgt = 300, wid = hgt*(img.ok ? img.width/img.height : .63);
+  const feetY = clipY + 130 + (1-lift)*380;
+  ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,clipY); ctx.clip();   // pops up from behind the back ridge
+  ctx.translate(bf.x, feetY); ctx.scale(-1,1);                      // face the rival squad
+  if(img.ok){ ctx.drawImage(img, -wid/2, -hgt, wid, hgt); }
+  else { ctx.fillStyle='#b5812f'; ctx.fillRect(-wid/2,-hgt,wid,hgt); }
+  ctx.restore(); }
 function drawBalls(){
   for(const b of balls){
     ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(b.spin);
     if(b.phase==='drop') ctx.globalAlpha = Math.max(.15, b.dropSteps/10);
+    if(b.mega){
+      ctx.shadowColor='rgba(160,220,255,.9)'; ctx.shadowBlur=26;
+      ctx.fillStyle='#f2fbff'; ctx.beginPath(); ctx.arc(0,0,b.r,0,7); ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(180,210,240,.8)'; ctx.beginPath(); ctx.arc(0,0,b.r*.72,0,7); ctx.fill();
+      ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(-b.r*.25,-b.r*.25,b.r*.4,0,7); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.65)'; ctx.lineWidth=3;
+      for(let i=0;i<3;i++){ ctx.beginPath();
+        ctx.moveTo(Math.cos(b.spin+i*2.1)*b.r, Math.sin(b.spin+i*2.1)*b.r);
+        ctx.lineTo(Math.cos(b.spin+i*2.1+1.57)*b.r, Math.sin(b.spin+i*2.1+1.57)*b.r); ctx.stroke(); }
+      ctx.restore(); continue; }
     if(b.flame){
       ctx.shadowColor='rgba(255,140,40,.9)'; ctx.shadowBlur=14;
       ctx.fillStyle='#ffe3b0'; ctx.beginPath(); ctx.arc(0,0,b.r,0,7); ctx.fill();
@@ -699,6 +753,19 @@ function drawHUD(){
   ctx.fillText('LEVEL '+level, 24, 40);
   ctx.textAlign='center'; ctx.fillText('SCORE '+score, W/2, 40);
   ctx.textAlign='right'; ctx.fillText(greens().filter(k=>k.alive).length+' RIVALS LEFT', W-24, 40);
+  if(streak>=3 && state==='play' && !bf){
+    const pulse = streak>=9 ? 1+Math.sin(time*12)*.18 : 1;
+    const sx=250, sy=34;
+    ctx.save(); ctx.translate(sx,sy); ctx.scale(pulse,pulse);
+    ctx.fillStyle='#ff7a2f'; ctx.beginPath();
+    ctx.moveTo(0,-16); ctx.quadraticCurveTo(10,-6,6,4); ctx.quadraticCurveTo(3,9,0,12);
+    ctx.quadraticCurveTo(-3,9,-6,4); ctx.quadraticCurveTo(-10,-6,0,-16); ctx.fill();
+    ctx.fillStyle='#ffd23e'; ctx.beginPath();
+    ctx.moveTo(0,-9); ctx.quadraticCurveTo(6,-2,3,4); ctx.quadraticCurveTo(0,7,0,7);
+    ctx.quadraticCurveTo(-2,3,-3,4); ctx.quadraticCurveTo(-6,-2,0,-9); ctx.fill();
+    ctx.fillStyle='rgba(13,27,42,.8)'; ctx.font="bold 19px 'Trebuchet MS',sans-serif";
+    ctx.textAlign='left'; ctx.fillText('x'+streak, 14, 7);
+    ctx.restore(); }
 }
 let last=0;
 function loop(ts){
@@ -706,7 +773,7 @@ function loop(ts){
   update(dt);
   ctx.save();
   if(shake>0) ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
-  drawBG(); for(const k of kids) drawFighter(k);
+  drawBG(); drawBigfoot(); for(const k of kids) drawFighter(k);
   drawBalls(); drawAim(); drawSnow(); drawTouchUI();
   if(state==='title') drawTitle();
   if(state==='banner') drawBanner();
@@ -717,6 +784,8 @@ function loop(ts){
 }
 function boot(){ window.__GAME_BOOTED=true; reset(); requestAnimationFrame(loop); }
 if(SELFTEST){ setTimeout(startGame, 500); }
+if(/[?&]bf=1/.test(location.search)){ setTimeout(startGame, 300);
+  const bfpoll = setInterval(()=>{ if(state==='play'){ startBigfoot(); clearInterval(bfpoll); } }, 400); }
 </script>
 </body>
 </html>
