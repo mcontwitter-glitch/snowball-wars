@@ -204,6 +204,8 @@ function touchEndRouter(e){ let ate=false;
     else if(t.identifier===fireId){ const k=actKid, pw=firePower(); fireId=null; ate=true;
       if(k && k.state==='cock'){ if(pw>=1) throwBall(k,pw); else { k.state='ready'; k.stateT=0; } } } }
   if(ate){ e.preventDefault(); e.stopImmediatePropagation(); } }
+// preview flag: ?ui=touch shows the mobile controls on any device
+if(new URLSearchParams(location.search).get('ui')==='touch') touchUI=true;
 cv.addEventListener('touchstart',touchRouter,{passive:false});
 cv.addEventListener('touchmove',touchMoveRouter,{passive:false});
 cv.addEventListener('touchend',touchEndRouter,{passive:false});
