@@ -64,7 +64,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v22 TEST' : 'v22';
+const STAMP = SELFTEST ? 'v24 TEST' : 'v24';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,244],[180,252],[360,266],[540,286],[720,312],[900,344],[1080,382],[1260,424],[1440,470]];
@@ -156,11 +156,11 @@ function down(e){ if(state!=='play') return; const p=pos(e);
   for(const k of reds()){ if(!k.alive || k.state!=='ready') continue;
     const d=Math.hypot(p.x-k.x, p.y-(k.y-k.h*.3));
     if(d<bd){ bd=d; best=k; } }
-  if(best){ hold={kid:best, t0:time}; best.state='cock'; best.stateT=999; }
+  if(best){ hold={kid:best, t0:time}; best.state='cock'; best.stateT=999; actKid=best; }
   e.preventDefault(); }
 function move(e){ const p=pos(e); lastMouse.x=p.x; lastMouse.y=p.y;
   if(!hold) return;
-  hold.kid.x = Math.max(80, Math.min(760, p.x)); kidFeet(hold.kid);
+  hold.kid.x = Math.max(W-660, Math.min(W-60, p.x)); kidFeet(hold.kid);
   e.preventDefault(); }
 function up(e){ if(!hold) return;
   const power = Math.max(0, Math.min(8, Math.floor((time-hold.t0)*12)));
@@ -170,6 +170,45 @@ function up(e){ if(!hold) return;
     else { k.state='ready'; k.stateT=0; }
   }
   e.preventDefault(); }
+
+// ---------- mobile controls: left joystick + right charge-fire button ----------
+let touchUI=false, joyId=null, joyBase={x:170,y:H-140}, joyKnob={x:170,y:H-140}, joyDX=0;
+let fireId=null, fireT0=0, actKid=null;
+function nearestReadyRed(px,py){ let best=null, bd=1e9;
+  for(const k of reds()){ if(!k.alive || (k.state!=='ready' && k.state!=='walk')) continue;
+    const d=Math.hypot(px-k.x, py-(k.y-k.h*.3)); if(d<bd){bd=d; best=k;} } return best; }
+function firePower(){ return fireId===null ? 0 : Math.max(0,Math.min(8,Math.floor((time-fireT0)*12))); }
+function touchRouter(e){ touchUI=true; if(state!=='play') return;
+  const r=cv.getBoundingClientRect(); let ate=false;
+  for(const t of e.changedTouches){
+    const p={x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height)};
+    if(joyId===null && p.x<420 && p.y>H-320){            // joystick zone (bottom-left)
+      joyId=t.identifier; joyBase={x:p.x,y:p.y}; joyKnob={x:p.x,y:p.y}; joyDX=0; ate=true;
+    } else if(fireId===null && Math.hypot(p.x-(W-110),p.y-(H-110))<135){  // fire button
+      fireId=t.identifier; fireT0=time; ate=true;
+      let k=(actKid && actKid.alive && (actKid.state==='ready'||actKid.state==='walk')) ? actKid : nearestReadyRed(W-110,H-110);
+      if(k){ actKid=k; k.state='cock'; k.stateT=999; } } }
+  if(ate){ e.preventDefault(); e.stopImmediatePropagation(); } }
+function touchMoveRouter(e){ const r=cv.getBoundingClientRect(); let ate=false;
+  for(const t of e.changedTouches){
+    if(t.identifier===joyId){ const p={x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height)};
+      const dx=p.x-joyBase.x, dy=p.y-joyBase.y, d=Math.hypot(dx,dy)||1, m=Math.min(d,80);
+      joyKnob={x:joyBase.x+dx/d*m, y:joyBase.y+dy/d*m};
+      joyDX=Math.max(-1,Math.min(1,dx/80)); ate=true; }
+    else if(t.identifier===fireId){ ate=true; } }
+  if(ate){ e.preventDefault(); e.stopImmediatePropagation(); } }
+function touchEndRouter(e){ let ate=false;
+  for(const t of e.changedTouches){
+    if(t.identifier===joyId){ joyId=null; joyDX=0; ate=true;
+      if(actKid && actKid.state==='walk' && state==='play'){ actKid.state='ready'; actKid.stateT=0; } }
+    else if(t.identifier===fireId){ const k=actKid, pw=firePower(); fireId=null; ate=true;
+      if(k && k.state==='cock'){ if(pw>=1) throwBall(k,pw); else { k.state='ready'; k.stateT=0; } } } }
+  if(ate){ e.preventDefault(); e.stopImmediatePropagation(); } }
+cv.addEventListener('touchstart',touchRouter,{passive:false});
+cv.addEventListener('touchmove',touchMoveRouter,{passive:false});
+cv.addEventListener('touchend',touchEndRouter,{passive:false});
+cv.addEventListener('touchcancel',touchEndRouter,{passive:false});
+
 cv.addEventListener('mousedown',click); cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
 cv.addEventListener('touchstart',click,{passive:false}); cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); cv.addEventListener('touchend',up);
 cv.addEventListener('click',click);
@@ -233,6 +272,11 @@ function update(dt){
   // kid ticks (every 5/60 s), ball ticks (every 2/60 s) — discrete like the original
   const kidTicks = dt*60, ballTicks = dt*60;
   for(const k of greens()){ if(k.alive) greenAI(k, kidTicks); }
+  // joystick walk (mobile): same 3.2/tick walk speed, mirrored bounds for the red side
+  if(joyId!==null && joyDX!==0 && state==='play'){
+    let k=(actKid && actKid.alive && (actKid.state==='ready'||actKid.state==='walk')) ? actKid : nearestReadyRed(joyBase.x,joyBase.y);
+    if(k){ actKid=k; k.x=Math.max(W-660, Math.min(W-60, k.x+joyDX*3.2)); kidFeet(k); if(k.state==='ready') k.state='walk'; }
+  } else if(joyId===null && actKid && actKid.state==='walk'){ actKid.state='ready'; actKid.stateT=0; }
   for(const k of reds()){ if(k.state==='toss'||k.state==='daze'){ k.stateT -= dt*12;
       if(k.stateT<=0){ k.state='ready'; } } }
   // balls: rise phase then drop phase, fixed slopes, hits during rise only (as in source)
@@ -537,6 +581,33 @@ function drawBird(){
     ctx.restore();
   }
 }
+
+function drawTouchUI(){ if(!touchUI) return; ctx.save();
+  // joystick (floating: base sits where the thumb lands; idle = parked bottom-left)
+  const jx=joyId!==null?joyBase.x:170, jy=joyId!==null?joyBase.y:H-140;
+  ctx.globalAlpha=joyId!==null?.8:.4;
+  ctx.fillStyle='rgba(13,27,42,.5)'; ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(jx,jy,72,0,7); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(joyId!==null?joyKnob.x:jx,(joyId!==null?joyKnob.y:jy),30,0,7);
+  ctx.fillStyle='rgba(255,255,255,.9)'; ctx.fill();
+  // fire button + charge ring
+  const fx=W-110, fy=H-110, pw=firePower();
+  ctx.globalAlpha=fireId!==null?.95:.55;
+  ctx.fillStyle='rgba(13,27,42,.5)'; ctx.beginPath(); ctx.arc(fx,fy,64,0,7); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=3; ctx.stroke();
+  if(fireId!==null){ ctx.strokeStyle='#7fd8ff'; ctx.lineWidth=8;
+    ctx.beginPath(); ctx.arc(fx,fy,52,-Math.PI/2,-Math.PI/2+(pw/8)*Math.PI*2); ctx.stroke(); }
+  ctx.fillStyle=pw>0?'#e8f4ff':'rgba(255,255,255,.95)';
+  ctx.beginPath(); ctx.arc(fx,fy,13+pw*2.4,0,7); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font="bold 15px 'Trebuchet MS',sans-serif"; ctx.textAlign='center';
+  ctx.fillText('FIRE', fx, fy+92);
+  // marker over the kid the joystick/FIRE control
+  if(actKid && actKid.alive && state==='play'){
+    const mx=actKid.x, my=actKid.feet-actKid.h*2.45-44;
+    ctx.globalAlpha=.95; ctx.fillStyle='#7fd8ff';
+    ctx.beginPath(); ctx.moveTo(mx,my+9); ctx.lineTo(mx-9,my-3); ctx.lineTo(mx+9,my-3); ctx.closePath(); ctx.fill(); }
+  ctx.restore(); }
+
 function drawSnow(){ ctx.fillStyle='rgba(255,255,255,.8)';
   for(const f of flakes){ ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,7); ctx.fill(); } }
 function bigText(txt,y,size,fill){ ctx.font=`bold ${size}px 'Trebuchet MS',sans-serif`;
@@ -552,7 +623,8 @@ function drawTitle(){
   ctx.strokeText("Season's Greetings from Lil Foots",W/2,200); ctx.fillStyle='#ffd76d'; ctx.fillText("Season's Greetings from Lil Foots",W/2,200);
   ctx.font="italic 21px 'Trebuchet MS',sans-serif"; ctx.fillStyle='rgba(13,27,42,.7)'; ctx.textAlign='center';
   ctx.fillText('Bury the rival squad. Last team standing wins the hill.', W/2, 540);
-  ctx.fillText('Drag a kid to move them — HOLD to power up, release to throw.', W/2, 566);
+  ctx.fillText('Drag a kid to move them — HOLD to power up, release to throw.', W/2, 560);
+  ctx.fillText('On iPhone: joystick to move — hold FIRE to charge, release to throw.', W/2, 584);
   ctx.fillText('Bury the whole rival squad to take the hill.', W/2, 592);
   bigText('CLICK TO PLAY', 630, 30, '#7fd8ff');
   ctx.font="12px sans-serif"; ctx.fillStyle='rgba(255,255,255,.65)'; ctx.textAlign='right';
@@ -562,7 +634,7 @@ function drawBanner(){
   ctx.fillStyle='rgba(10,18,34,.35)'; ctx.fillRect(0,0,W,H);
   bigText('LEVEL '+level, 250, 72, '#ffd76d');
   ctx.font="italic 22px 'Trebuchet MS',sans-serif"; ctx.textAlign='center'; ctx.fillStyle='#e6f2fa';
-  ctx.fillText(level===1 ? 'Drag a kid, HOLD to power up, release to throw.' : (greensPerLevel(level)+' rivals incoming.'), W/2, 320);
+  ctx.fillText(level===1 ? (touchUI ? 'Joystick to move — hold FIRE to charge.' : 'Drag a kid, HOLD to power up, release to throw.') : (greensPerLevel(level)+' rivals incoming.'), W/2, 320);
 }
 function drawEnd(){
   ctx.fillStyle='rgba(13,27,42,.45)'; ctx.fillRect(0,0,W,H);
@@ -589,7 +661,7 @@ function loop(ts){
   ctx.save();
   if(shake>0) ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
   drawBG(); for(const k of kids) drawFighter(k);
-  drawBalls(); drawAim(); drawSnow();
+  drawBalls(); drawAim(); drawSnow(); drawTouchUI();
   if(state==='title') drawTitle();
   if(state==='banner') drawBanner();
   if(state==='end') drawEnd();
