@@ -64,10 +64,18 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v24 TEST' : 'v24';
+const STAMP = SELFTEST ? 'v25 TEST' : 'v25';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,244],[180,252],[360,266],[540,286],[720,312],[900,344],[1080,382],[1260,424],[1440,470]];
+// original stage 594x322 scaled to 1440x660; ball slope tuned to this field's tilt (slope .16):
+// a power-5 ball from the front line lands in the rival cluster, power 8 overshoots, like the source's tuning
+const BALL_DX = 62.5, BALL_DY = 10;
+function fenceX(y){ return 1551.5 - 2.3652*y; } // the source's movement fence: locH >= (320-locV)*2, scaled
+function clampRed(k){ k.x = Math.max(Math.min(k.x, W-50), fenceX(k.feet));
+  const ty = terrainY(k.x); k.feet = Math.max(ty-80, Math.min(ty+12, k.feet)); k.y = k.feet-30; }
+function clampGreen(k){ k.x = Math.max(Math.min(k.x, W-60), 60);
+  const ty = terrainY(k.x); k.feet = Math.max(ty-80, Math.min(ty+12, k.feet)); k.y = k.feet-30; }
 function terrainY(x){
   const n = TPTS.length-1, fx = Math.max(0, Math.min(W, x)) / W * n;
   const i = Math.min(n-1, Math.floor(fx)), t = fx - i;
@@ -86,6 +94,7 @@ function tone(f0,f1,dur,type,vol){ const ac=audio(); if(!ac) return;
 function sfxThrow(){ tone(680,140,.22,'sine',.14); }
 function sfxHit(){ tone(220,60,.18,'triangle',.3); }
 function sfxBuried(){ [392,330,262].forEach((f,i)=>{ tone(f,f,.28,'sine',.14); }); }
+function sfxDown(){ tone(180,90,.3,'sawtooth',.18); }
 function sfxWin(){ [523,659,784,1047].forEach((f,i)=>{ tone(f,f,.2,'square',.09); }); }
 function sfxBird(){ tone(1200,700,.09,'square',.06); tone(1400,900,.09,'square',.05); }
 function sfxPower(){ [660,880,1320].forEach((f,i)=>{ tone(f,f,.18,'triangle',.1); }); }
@@ -127,24 +136,27 @@ function reset(){
 function kidFeet(k){ k.feet = terrainY(k.x); k.y = k.feet-30; }
 function throwBall(k, power){
   const dir = k.team==='p' ? -1 : 1;
-  balls.push({x:k.x+dir*14, y:k.feet-k.h*.76, dir, from:k.team, power,
-              phase:'rise', steps:power*2, r:11+power*1.5, spin:Math.random()*6, t:0});
-  k.state='toss'; k.stateT=5; sfxThrow();
+  // source: the ball spawns AT the kid's sprite loc - aim is where you park the kid
+  balls.push({x:k.x+dir*8, y:k.feet-k.h*.45, dir, from:k.team, power,
+              phase:'rise', steps:power*2, dropSteps:10, r:11+power*1.5, spin:Math.random()*6, t:0});
+  k.state='toss'; k.stateT=5;
+  if(power>=8){ tone(920,180,.25,'sine',.2); } else { sfxThrow(); } // source: "Whoosh" only for the range-16 ball
 }
 function hittable(k){
-  // authentic: only corpses/empty slots are immune (memberNum > "G recover" in the source)
-  return k.alive;
+  // source: greens skip when memberNum > "G recover" = the down/lying + mound members only
+  return k.alive && k.state!=='down';
 }
 function kidHit(k, b){
-  k.hits++; k.squash=1; shake=7; sfxHit(); poof(b.x,b.y,12);
-  if(k.team==='e'){
-    if(k.hits>=k.maxHits){ k.alive=false; k.state='dead'; levelKills++; sfxBuried(); poof(k.x,k.feet-16,18); }
-    else if(k.hits===2){ k.state='down'; k.stateT=25; }
-    else { k.state='ow'; k.stateT=10; }
-  } else {
-    if(k.hits>=k.maxHits){ k.alive=false; k.state='dead'; sfxBuried(); poof(k.x,k.feet-16,18); }
-    else { k.state='daze'; k.stateT=15; }
-  }
+  k.squash=1; shake=7; sfxHit(); poof(b.x,b.y,12);
+  // source: a ball on a held red interrupts the drag (the stillDown loop exits when memberNum >= "R hit")
+  if(k.team==='p'){ if(hold && hold.kid===k) hold=null; if(fireId!==null && actKid===k) fireId=null; }
+  // re-hit during the stagger just restarts the flinch - it does not stack (re-setting member "G hit")
+  if(k.state==='hit' || k.state==='hit2'){ k.state='hit'; k.stateT=1; return; }
+  // "myMove" left over from the interrupted state delays when the hit registers ("hit2" waits myMove=0)
+  k.hitPend = (k.team==='p' && k.state==='cock') ? 0
+            : (k.state==='walk') ? Math.min(k.walkSteps,30)
+            : Math.min(Math.max(0,Math.ceil(k.stateT)),30);
+  k.state='hit'; k.stateT=1;
 }
 
 // ---------- input: drag kid + hold to charge ----------
@@ -152,27 +164,26 @@ function pos(e){ const r=cv.getBoundingClientRect();
   const t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
   return { x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height) }; }
 function down(e){ if(state!=='play') return; const p=pos(e);
+  if(hold){ e.preventDefault(); return; }              // one held kid at a time, like the source
   let best=null, bd=130;
-  for(const k of reds()){ if(!k.alive || k.state!=='ready') continue;
+  for(const k of reds()){ if(!k.alive || k.state==='hit' || k.state==='hit2') continue;
     const d=Math.hypot(p.x-k.x, p.y-(k.y-k.h*.3));
     if(d<bd){ bd=d; best=k; } }
-  if(best){ hold={kid:best, t0:time}; best.state='cock'; best.stateT=999; actKid=best; }
+  if(best){ hold={kid:best, t0:time, ox:p.x-best.x, oy:p.y-best.feet}; best.state='cock'; best.stateT=999; actKid=best; }
   e.preventDefault(); }
 function move(e){ const p=pos(e); lastMouse.x=p.x; lastMouse.y=p.y;
   if(!hold) return;
-  hold.kid.x = Math.max(W-660, Math.min(W-60, p.x)); kidFeet(hold.kid);
+  const k=hold.kid;
+  k.x = p.x-hold.ox; k.feet = p.y-hold.oy; clampRed(k);  // source: full 2D drag + the diagonal fence
   e.preventDefault(); }
 function up(e){ if(!hold) return;
   const power = Math.max(0, Math.min(8, Math.floor((time-hold.t0)*12)));
   const k=hold.kid; hold=null;
-  if(k.state==='cock'){
-    if(power>=1) throwBall(k, power);
-    else { k.state='ready'; k.stateT=0; }
-  }
+  if(k.state==='cock') throwBall(k, power);  // source throws even at power 0 - the ball just melts at the kid
   e.preventDefault(); }
 
 // ---------- mobile controls: left joystick + right charge-fire button ----------
-let touchUI=false, joyId=null, joyBase={x:170,y:H-140}, joyKnob={x:170,y:H-140}, joyDX=0;
+let touchUI=false, joyId=null, joyBase={x:170,y:H-140}, joyKnob={x:170,y:H-140}, joyDX=0, joyDY=0;
 let fireId=null, fireT0=0, actKid=null;
 function nearestReadyRed(px,py){ let best=null, bd=1e9;
   for(const k of reds()){ if(!k.alive || (k.state!=='ready' && k.state!=='walk')) continue;
@@ -194,15 +205,15 @@ function touchMoveRouter(e){ const r=cv.getBoundingClientRect(); let ate=false;
     if(t.identifier===joyId){ const p={x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height)};
       const dx=p.x-joyBase.x, dy=p.y-joyBase.y, d=Math.hypot(dx,dy)||1, m=Math.min(d,80);
       joyKnob={x:joyBase.x+dx/d*m, y:joyBase.y+dy/d*m};
-      joyDX=Math.max(-1,Math.min(1,dx/80)); ate=true; }
+      joyDX=Math.max(-1,Math.min(1,dx/80)); joyDY=Math.max(-1,Math.min(1,dy/80)); ate=true; }
     else if(t.identifier===fireId){ ate=true; } }
   if(ate){ e.preventDefault(); e.stopImmediatePropagation(); } }
 function touchEndRouter(e){ let ate=false;
   for(const t of e.changedTouches){
-    if(t.identifier===joyId){ joyId=null; joyDX=0; ate=true;
+    if(t.identifier===joyId){ joyId=null; joyDX=0; joyDY=0; ate=true;
       if(actKid && actKid.state==='walk' && state==='play'){ actKid.state='ready'; actKid.stateT=0; } }
     else if(t.identifier===fireId){ const k=actKid, pw=firePower(); fireId=null; ate=true;
-      if(k && k.state==='cock'){ if(pw>=1) throwBall(k,pw); else { k.state='ready'; k.stateT=0; } } } }
+      if(k && k.state==='cock') throwBall(k,pw); } }
   if(ate){ e.preventDefault(); e.stopImmediatePropagation(); } }
 // preview flag: ?ui=touch shows the mobile controls on any device
 if(new URLSearchParams(location.search).get('ui')==='touch') touchUI=true;
@@ -222,6 +233,19 @@ function startGame(){ state='play'; audio(); try{ if(AC && AC.state==='suspended
   reset(); const rot=document.getElementById('rot'); if(rot) rot.style.display='none'; }
 
 // ---------- green AI: the original random(10) state machine ----------
+function redTick(k){   // source red script: no idle behavior - only hit/daze states tick
+  if(k.stateT>0){ k.stateT--; if(k.stateT>0) return; }
+  switch(k.state){
+    case 'toss': k.state='ready'; break;
+    case 'daze': k.state='ready'; break;            // 15 steps of the 3-frame wobble (drawn at 12/s)
+    case 'hit': k.state='hit2'; k.stateT=Math.max(0,k.hitPend||0); break;
+    case 'hit2':
+      k.hits++;
+      if(k.hits>=k.maxHits){ k.alive=false; k.state='dead'; sfxBuried(); poof(k.x,k.feet-16,18); }
+      else { k.state='daze'; k.stateT=15; sfxBird(); }   // source: bird_tweets, daze1-3 for 15 steps
+      break;
+  }
+}
 function greenAI(k, ticks){
   k.clock += ticks;
   while(k.clock >= 5){ k.clock -= 5; greenTick(k); }
@@ -229,13 +253,25 @@ function greenAI(k, ticks){
 function greenTick(k){
   if(k.stateT>0){ k.stateT--; if(k.stateT>0) return; }
   switch(k.state){
-    case 'ready':
-      const roll = Math.random();
-      if(roll<.20){ k.state='windup'; k.stateT=5; }                       // original: 3 or 4 on random(10)
-      else if(roll<.30){ k.walkDir=1; k.walkSteps = 8+Math.floor(Math.random()*18); k.state='walk'; }  // advance toward the reds
-      else if(roll<.40){ k.walkDir = Math.random()<.5?1:-1; k.walkSteps = 5; k.state='walk'; }            // sidestep
-      break;
-    case 'windup': k.state='cock'; k.stateT=5+Math.floor(Math.random()*10); break;
+    case 'ready': {
+      const roll = Math.random()*10;
+      if(roll<1){        // case 1: long V-walk, myMove=random(99), direction point(2,1) or (-2,-1)
+        k.state='walk'; k.walkKind='V'; k.walkSteps=1+Math.floor(Math.random()*99);
+        const s=Math.random()<.5?1:-1; k.dx=4.85*s; k.dy=2.05*s;
+      } else if(roll<2){ // case 2: short H-walk, myMove=5, direction point(1,2) or (-1,-2)
+        k.state='walk'; k.walkKind='H'; k.walkSteps=5;
+        const s=Math.random()<.5?1:-1; k.dx=2.42*s; k.dy=4.10*s;
+      } else if(roll<4){ k.state='windup'; k.stateT=5; } // cases 3-4
+      break; }          // cases 5-10: stand ready
+    case 'walk': {
+      if(k.x<97){ k.dx=9.7; k.dy=2.05; }     // source step(): locH<40 -> point(4,1)
+      if(k.feet<82){ k.dx=2.42; k.dy=8.2; }  // source step(): locV<40 -> point(1,4)
+      k.x+=k.dx; k.feet+=k.dy; clampGreen(k);
+      k.walkSteps--;
+      if(k.x > fenceX(k.feet)){ k.state='windup'; k.stateT=5; }      // crossed the fence: set up the throw
+      else if(k.walkSteps<=0){ if(k.walkKind==='V'){ k.state='windup'; k.stateT=5; } else { k.state='ready'; } }
+      break; }
+    case 'windup': k.state='cock'; k.stateT=6+Math.floor(Math.random()*10); break; // source: random(10)+5 = 6-15
     case 'cock':
       throwBall(k, 5+Math.floor(Math.random()*4)); // original: random(4)+4
       break;
@@ -251,7 +287,14 @@ function greenTick(k){
       break;
     case 'ow': k.state='recover'; k.stateT=5; break;
     case 'recover': k.state='ready'; break;
-    case 'down': k.state='ow'; k.stateT=15; break;
+    case 'down': k.state='ow'; k.stateT=5; break;   // source: "G down" -> "G ow" after 5
+    case 'hit': k.state='hit2'; k.stateT=Math.max(0,k.hitPend||0); break;
+    case 'hit2':
+      k.hits++;
+      if(k.hits>=k.maxHits){ k.alive=false; k.state='dead'; levelKills++; sfxBuried(); poof(k.x,k.feet-16,18); }
+      else if(k.hits===2){ k.state='down'; k.stateT=25; sfxDown(); }   // source: hit2 sound, down 25
+      else { k.state='ow'; k.stateT=10; }
+      break;
     case 'daze': k.state='ready'; break;
   }
 }
@@ -275,35 +318,38 @@ function update(dt){
   const kidTicks = dt*60, ballTicks = dt*60;
   for(const k of greens()){ if(k.alive) greenAI(k, kidTicks); }
   // joystick walk (mobile): same 3.2/tick walk speed, mirrored bounds for the red side
-  if(joyId!==null && joyDX!==0 && state==='play'){
+  if(joyId!==null && (joyDX!==0||joyDY!==0) && state==='play'){
     let k=(actKid && actKid.alive && (actKid.state==='ready'||actKid.state==='walk')) ? actKid : nearestReadyRed(joyBase.x,joyBase.y);
-    if(k){ actKid=k; k.x=Math.max(W-660, Math.min(W-60, k.x+joyDX*3.2)); kidFeet(k); if(k.state==='ready') k.state='walk'; }
+    if(k){ actKid=k; k.x+=joyDX*3.4; k.feet+=joyDY*3.4; clampRed(k); if(k.state==='ready') k.state='walk'; }
   } else if(joyId===null && actKid && actKid.state==='walk'){ actKid.state='ready'; actKid.stateT=0; }
-  for(const k of reds()){ if(k.state==='toss'||k.state==='daze'){ k.stateT -= dt*12;
-      if(k.stateT<=0){ k.state='ready'; } } }
-  // balls: rise phase then drop phase, fixed slopes, hits during rise only (as in source)
+  for(const k of reds()){ if(!k.alive) continue; k.clock += kidTicks;
+    while(k.clock >= 5){ k.clock -= 5; redTick(k); } }
+  // source flight: a straight diagonal. "snowball" moves (20,10)/2ticks for power*2 steps
+  // (hits only while myRange>0), then the drop/splat/melt members keep flying at HALF speed
+  // while the ball shrinks away. No gravity, no ground: aim = kid placement, power = range.
   for(const b of balls){
     b.t += ballTicks;
     while(b.t >= 2){
       b.t -= 2;
-      // authentic: rise phase (fixed slope, length = power x 2 steps), then drop (half speed)
       if(b.phase==='rise'){
-        b.x += b.dir*36; b.y -= 18; b.steps--; b.spin+=.4;
-        if(b.steps<=0) b.phase='drop';
-      } else {
-        b.x += b.dir*18; b.y += 9; b.spin+=.4;
-      }
-      // hit check across the flight (arc adaptation of the original's rise-crossing)
-      const targets = b.from==='p' ? greens() : reds();
-      for(const k of targets){
-        if(!hittable(k)) continue;
-        if(Math.abs(b.x-k.x) < k.w/2+6 && b.y > k.feet-k.h*2.45-10 && b.y < k.feet+6){
-          kidHit(k, b); b.dead=true; break;
+        if(b.steps<=0){ b.phase='drop'; }
+        else {
+          b.x += b.dir*BALL_DX; b.y += b.dir*BALL_DY; b.steps--; b.spin+=.4;
+          const targets = b.from==='p' ? greens() : reds();
+          for(const k of targets){
+            if(!hittable(k)) continue;
+            if(Math.abs(b.x-k.x) < k.w/2+6 && b.y > k.feet-k.h*2.45-10 && b.y < k.feet+6){
+              kidHit(k, b); b.dead=true; break;
+            }
+          }
+          if(b.dead) break;
         }
+      } else {
+        b.x += b.dir*BALL_DX/2; b.y += b.dir*BALL_DY/2; b.spin+=.4;
+        b.r = Math.max(2, b.r*.93); b.dropSteps--;
+        if(b.dropSteps<=0){ b.dead=true; break; }
       }
-      if(b.dead) break;
-      if(b.phase==='drop' && b.y >= terrainY(b.x)-2){ poof(b.x, terrainY(b.x), 10); b.dead=true; break; }
-      if(b.x<-40||b.x>W+40){ b.dead=true; break; }
+      if(b.x<-60||b.x>W+60||b.y<-60||b.y>H+60){ b.dead=true; break; }
     }
   }
   balls = balls.filter(b=>!b.dead);
@@ -326,22 +372,18 @@ function update(dt){
       if(ps.length&&es.length){
         const k=ps[Math.floor(Math.random()*ps.length)];
         const t=es[Math.floor(Math.random()*es.length)];
-        // simulate the full arc (rise + drop) to find a kid.x that splats on the target
+        // simulate the straight rise (hits land only during rise, like the source)
         const sim = (x0, p) => {
-          let x=x0, y=terrainY(x0)-80, steps=p*2;
-          while(x>-40 && x<W+40){
-            if(steps>0){ x-=36; y-=18; steps--; } else { x-=18; y+=9; }
-            if(y>=terrainY(x)-2) break;
+          let x = x0-8, y = terrainY(x0) - k.h*.45;
+          for(let n=0; n<p*2; n++){
+            x -= BALL_DX; y -= BALL_DY;
+            if(Math.abs(x - t.x) < t.w/2+6 && y > t.feet-t.h*2.45-10 && y < t.feet+6) return true;
           }
-          return x;
+          return false;
         };
         let best=null;
-        for(let p=3; p<=8; p++){
-          for(let x=1245; x>=980; x-=6){
-            const land = sim(x, p);
-            const err = Math.abs(land - t.x);
-            if(err < 14 && (!best || err < best.err)) best = {x, p, err};
-          }
+        for(let p=3; p<=8 && !best; p++){
+          for(let x=1245; x>=980; x-=6){ if(sim(x,p)){ best={x,p}; break; } }
         }
         if(best){ k.x = best.x; kidFeet(k); throwBall(k, best.p); }
       }
@@ -490,7 +532,8 @@ function drawFighter(f){
   else if(f.state==='toss'){ ctx.rotate(.28*td); }
   else if(f.state==='windup'){ ctx.rotate(-.16*td); }
   else if(f.state==='ready' && f.team==='p'){ ctx.rotate(-.05); } // squared up toward the rivals
-  else if(f.state==='daze'){ ctx.rotate(.28*Math.sin(time*11)); }
+  else if(f.state==='hit'||f.state==='hit2'){ ctx.rotate(.1*td); ctx.scale(1,.94); }
+  else if(f.state==='daze'){ ctx.rotate(.28*Math.sin(time*25)); }
   else if(f.state==='ow'){ ctx.scale(1,.82); ctx.rotate(-.12); }
   else if(f.state==='down'){ ctx.scale(1,.6); ctx.rotate(-.3); }
   else if(f.state==='walk'){ ctx.rotate(.07*Math.sin(time*13)); }
@@ -544,6 +587,7 @@ function drawAim(){
 function drawBalls(){
   for(const b of balls){
     ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(b.spin);
+    if(b.phase==='drop') ctx.globalAlpha = Math.max(.15, b.dropSteps/10);
     if(b.flame){
       ctx.shadowColor='rgba(255,140,40,.9)'; ctx.shadowBlur=14;
       ctx.fillStyle='#ffe3b0'; ctx.beginPath(); ctx.arc(0,0,b.r,0,7); ctx.fill();
