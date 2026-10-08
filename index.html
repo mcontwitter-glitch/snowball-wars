@@ -242,7 +242,7 @@ function redTick(k){   // source red script: no idle behavior - only hit/daze st
     case 'hit2':
       k.hits++;
       if(k.hits>=k.maxHits){ k.alive=false; k.state='dead'; sfxBuried(); poof(k.x,k.feet-16,18); }
-      else { k.state='daze'; k.stateT=15; sfxBird(); }   // source: bird_tweets, daze1-3 for 15 steps
+      else { k.state='daze'; k.stateT=45; sfxBird(); }   // source: bird_tweets; mySteps=15 decrements once per FULL daze1->daze2->daze3 cycle (1 tick each), so 15 x 3 = 45 ticks = 3.75s
       break;
   }
 }
