@@ -65,7 +65,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v26 TEST' : 'v26';
+const STAMP = SELFTEST ? 'v27 TEST' : 'v27';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,244],[180,252],[360,266],[540,286],[720,312],[900,344],[1080,382],[1260,424],[1440,470]];
@@ -192,7 +192,7 @@ function up(e){ if(!hold) return;
   e.preventDefault(); }
 
 // ---------- mobile input: same drag mechanic as desktop, finger directly on the kid ----------
-// (Mau55: no joystick, no FIRE button - press a kid, drag in any direction, release to throw)
+// (Mau5: no joystick, no FIRE button - press a kid, drag in any direction, release to throw)
 let actKid=null;
 
 cv.addEventListener('mousedown',click); cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
@@ -285,7 +285,8 @@ function update(dt){
     if(bf){ bf.t+=dt; if(bf.phase!=='sink' && bf.t>0.5){ bf.phase='sink'; bf.t=0; }
       else if(bf.phase==='sink' && bf.t>=0.9){ bf=null; } }
     for(const k of greens()) k.bobT += dt*6;
-    if(celebrate<=0){ level++; reset(); state='banner'; bannerT=1.6; }
+    if(celebrate<=0){ if(level>=11){ winner='p'; state='end'; return; }
+      level++; reset(); state='banner'; bannerT=1.6; }
     return; }
   if(state!=='play') return;
   for(const k of kids){ k.bobT+=dt*3; k.squash=Math.max(0,k.squash-dt*4); }
@@ -643,30 +644,16 @@ function drawBird(){
   }
 }
 
-function drawTouchUI(){ if(!touchUI) return; ctx.save();
-  // joystick (floating: base sits where the thumb lands; idle = parked bottom-left)
-  const jx=joyId!==null?joyBase.x:170, jy=joyId!==null?joyBase.y:H-140;
-  ctx.globalAlpha=joyId!==null?.8:.4;
-  ctx.fillStyle='rgba(13,27,42,.5)'; ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.arc(jx,jy,72,0,7); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.arc(joyId!==null?joyKnob.x:jx,(joyId!==null?joyKnob.y:jy),30,0,7);
-  ctx.fillStyle='rgba(255,255,255,.9)'; ctx.fill();
-  // fire button + charge ring
-  const fx=W-110, fy=H-110, pw=firePower();
-  ctx.globalAlpha=fireId!==null?.95:.55;
-  ctx.fillStyle='rgba(13,27,42,.5)'; ctx.beginPath(); ctx.arc(fx,fy,64,0,7); ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=3; ctx.stroke();
-  if(fireId!==null){ ctx.strokeStyle='#7fd8ff'; ctx.lineWidth=8;
-    ctx.beginPath(); ctx.arc(fx,fy,52,-Math.PI/2,-Math.PI/2+(pw/8)*Math.PI*2); ctx.stroke(); }
-  ctx.fillStyle=pw>0?'#e8f4ff':'rgba(255,255,255,.95)';
-  ctx.beginPath(); ctx.arc(fx,fy,13+pw*2.4,0,7); ctx.fill();
-  ctx.fillStyle='#fff'; ctx.font="bold 15px 'Trebuchet MS',sans-serif"; ctx.textAlign='center';
-  ctx.fillText('FIRE', fx, fy+92);
-  // marker over the kid the joystick/FIRE control
-  if(actKid && actKid.alive && state==='play'){
-    const mx=actKid.x, my=actKid.feet-actKid.h*2.45-44;
-    ctx.globalAlpha=.95; ctx.fillStyle='#7fd8ff';
-    ctx.beginPath(); ctx.moveTo(mx,my+9); ctx.lineTo(mx-9,my-3); ctx.lineTo(mx+9,my-3); ctx.closePath(); ctx.fill(); }
+function drawDragUI(){ // finger/mouse drag indicator: arrow + charge ring over the held kid
+  if(!hold || state!=='play') return;
+  const k = hold.kid; if(!k.alive) return;
+  const pw = Math.max(0, Math.min(8, Math.floor((time-hold.t0)*12)));
+  const mx = k.x, my = k.feet - k.h*2.45 - 46;
+  ctx.save(); ctx.globalAlpha=.95;
+  ctx.fillStyle='#7fd8ff';
+  ctx.beginPath(); ctx.moveTo(mx,my+10); ctx.lineTo(mx-10,my-4); ctx.lineTo(mx+10,my-4); ctx.closePath(); ctx.fill();
+  if(pw>0){ ctx.strokeStyle='rgba(127,216,255,.9)'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.arc(mx,my-26,14,-Math.PI/2,-Math.PI/2+(pw/8)*Math.PI*2); ctx.stroke(); }
   ctx.restore(); }
 
 function drawSnow(){ ctx.fillStyle='rgba(255,255,255,.8)';
@@ -685,7 +672,7 @@ function drawTitle(){
   ctx.font="italic 21px 'Trebuchet MS',sans-serif"; ctx.fillStyle='rgba(13,27,42,.7)'; ctx.textAlign='center';
   ctx.fillText('Bury the rival squad. Last team standing wins the hill.', W/2, 540);
   ctx.fillText('Drag a kid to move them — HOLD to power up, release to throw.', W/2, 560);
-  ctx.fillText('On iPhone: joystick to move — hold FIRE to charge, release to throw.', W/2, 584);
+  ctx.fillText('Touch or mouse — same move: press a kid, drag anywhere on your side, release to throw.', W/2, 584);
   ctx.fillText('Bury the whole rival squad to take the hill.', W/2, 592);
   bigText('CLICK TO PLAY', 630, 30, '#7fd8ff');
   ctx.font="12px sans-serif"; ctx.fillStyle='rgba(255,255,255,.65)'; ctx.textAlign='right';
@@ -695,18 +682,45 @@ function drawBanner(){
   ctx.fillStyle='rgba(10,18,34,.35)'; ctx.fillRect(0,0,W,H);
   bigText('LEVEL '+level, 250, 72, '#ffd76d');
   ctx.font="italic 22px 'Trebuchet MS',sans-serif"; ctx.textAlign='center'; ctx.fillStyle='#e6f2fa';
-  ctx.fillText(level===1 ? (touchUI ? 'Joystick to move — hold FIRE to charge.' : 'Drag a kid, HOLD to power up, release to throw.') : (greensPerLevel(level)+' rivals incoming.'), W/2, 320);
+  ctx.fillText(level===1 ? 'Drag a kid, HOLD to power up, release to throw.' : (greensPerLevel(level)+' rivals incoming.'), W/2, 320);
 }
 function drawEnd(){
-  ctx.fillStyle='rgba(13,27,42,.45)'; ctx.fillRect(0,0,W,H);
-  bigText(winner==='p'?'YOU WIN!':'BURIED...', 230, 70, winner==='p'?'#ffd76d':'#ffffff');
-  ctx.font="italic 24px 'Trebuchet MS',sans-serif"; ctx.textAlign='center'; ctx.fillStyle='#e6f2fa';
-  ctx.fillText(winner==='p'
-    ? 'You out-threw the whole mountain. Legendary.'
-    : 'The rival squad got you on level '+level+'. Final score: '+score, W/2, 276);
-  ctx.fillStyle='rgba(255,255,255,.12)'; ctx.strokeStyle='#7fd8ff'; ctx.lineWidth=2;
+  // the original's ending card: Season's Greetings (GreenWin scene)
+  const win = winner==='p';
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#eef6fa';                       // pale distant hills
+  ctx.beginPath(); ctx.ellipse(W*.22, 575, 520, 140, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(W*.78, 575, 580, 165, 0, 0, 7); ctx.fill();
+  function mound(x,y,w,h){ ctx.fillStyle='#d6e9f0'; ctx.beginPath();
+    ctx.ellipse(x,y,w,h,0,Math.PI,Math.PI*2,false); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='#bcd8e4'; ctx.lineWidth=3; ctx.stroke(); }
+  function sit(key,x,y,s,flip,tilt,onMound){
+    const img=IMAGES[key]; if(!img||!img.ok) return;
+    const h=112*s, w=h*(img.width/img.height);
+    if(onMound) mound(x, y+18, w*.66, 30*s);
+    ctx.save(); ctx.translate(x,y); ctx.rotate(tilt||0); if(flip) ctx.scale(-1,1);
+    ctx.drawImage(img, -w/2, -h*.9, w, h*.85); ctx.restore(); }   // squashed read = sitting
+  // cast, mirroring the original card: winners sit on the snow, the beaten squad sits around the mounds
+  const winKeys = win ? ['hat','whitey','crown'] : ['green','green','green'];
+  const loseKeys = win ? ['green','green','green'] : ['hat','whitey','crown'];
+  sit(winKeys[0], 235, 305, 1.15, false, -.05, false);
+  sit(winKeys[1], 335, 292, 1.05, true, .05, false);
+  sit(winKeys[2], 252, 472, 1.18, true, .03, false);
+  sit(loseKeys[0], 1062, 305, 1, true, -.04, true);
+  sit(loseKeys[1], 1172, 295, .95, false, .06, true);
+  sit(loseKeys[2], 1116, 470, 1.05, false, -.02, true);
+  ctx.textAlign='center';                        // watercolor-feel double render of the lettering
+  ctx.font="italic 80px Georgia, 'Times New Roman', serif";
+  ctx.fillStyle='rgba(43,77,102,.30)'; ctx.fillText("Season's Greetings", W/2+2, 214);
+  ctx.fillStyle='#2b4d66'; ctx.fillText("Season's Greetings", W/2, 210);
+  ctx.font="italic 24px Georgia, serif"; ctx.fillStyle='rgba(43,77,102,.9)';
+  ctx.fillText(win ? 'You buried the whole mountain. Legendary. From Lil Foots with love.'
+                   : 'The rival squad sends their regards. From Lil Foots with love.', W/2, 262);
+  ctx.font="bold 22px 'Trebuchet MS',sans-serif"; ctx.fillStyle='rgba(43,77,102,.95)';
+  ctx.fillText('FINAL SCORE '+score+'   •   LEVEL '+level+(win?' CLEARED':' REACHED'), W/2, 308);
+  ctx.fillStyle='rgba(43,77,102,.08)'; ctx.strokeStyle='#2b4d66'; ctx.lineWidth=2;
   ctx.beginPath(); ctx.rect(W/2-110,H-116,220,44); ctx.fill(); ctx.stroke();
-  ctx.font="bold 26px 'Trebuchet MS',sans-serif"; ctx.fillStyle='#7fd8ff'; ctx.fillText('REMATCH', W/2, H-85);
+  ctx.font="bold 26px 'Trebuchet MS',sans-serif"; ctx.fillStyle='#2b4d66'; ctx.fillText('REMATCH', W/2, H-85);
 }
 function drawHUD(){
   if(state!=='play' && state!=='banner' && state!=='celebrate') return;
@@ -735,7 +749,7 @@ function loop(ts){
   ctx.save();
   if(shake>0) ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
   drawBG(); drawBigfoot(); for(const k of kids) drawFighter(k);
-  drawBalls(); drawAim(); drawSnow(); drawTouchUI();
+  drawBalls(); drawAim(); drawSnow(); drawDragUI();
   if(state==='title') drawTitle();
   if(state==='banner') drawBanner();
   if(state==='end') drawEnd();
