@@ -64,7 +64,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v21 TEST' : 'v21';
+const STAMP = SELFTEST ? 'v22 TEST' : 'v22';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,244],[180,252],[360,266],[540,286],[720,312],[900,344],[1080,382],[1260,424],[1440,470]];
@@ -112,13 +112,16 @@ function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
   kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null;
   const pk=['hat','whitey','crown'], psc=[2.1,1.97,2.06]; // reference scale: kids ~19% of screen height, big and readable
-  [1245,1115,985].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i]))); // reference: reds span 62-87% width, lower-right on the tilted field
+  [1245,1125,1000].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i]))); // reference: reds 62-87% width, staggered diagonal lower-right
   const gd = greensPerLevel(level);
+  // reference formation: tight staggered cluster on the upper-left slope (2 back + 1 front for the opening trio)
+  const gSlots = [];
   for(let i=0;i<gd;i++){
-    const row = Math.floor(i/4);
-    const gx = 465 - (i%4)*125 - row*55;   // reference: greens span 11-32% width, upper-left
-    kids.push(mkKid('green', gx-Math.random()*30, 'e', 0, [2.1,1.93,2.02][i%3]));
+    if(i<4) gSlots.push({x:165+i*115, sc:[2.0,1.92,1.96,2.0][i], back:0});      // front line, reference pitch
+    else    gSlots.push({x:110+((i-4)%4)*115 + Math.floor((i-4)/4)*57, sc:1.72, back:1}); // back band, up-slope, reads deeper
   }
+  gSlots.sort((a,b)=> (a.back-b.back) || (a.x-b.x));   // back band drawn first, each band up-slope first
+  for(const g of gSlots) kids.push(mkKid('green', g.x, 'e', 0, g.sc));
   flakes = Array.from({length:90},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.4+Math.random()*1.2,drift:Math.random()*6.28}));
 }
 function kidFeet(k){ k.feet = terrainY(k.x); k.y = k.feet-30; }
@@ -248,7 +251,7 @@ function update(dt){
       const targets = b.from==='p' ? greens() : reds();
       for(const k of targets){
         if(!hittable(k)) continue;
-        if(Math.abs(b.x-k.x) < k.w/2+6 && b.y > k.feet-k.h-10 && b.y < k.feet+6){
+        if(Math.abs(b.x-k.x) < k.w/2+6 && b.y > k.feet-k.h*2.45-10 && b.y < k.feet+6){
           kidHit(k, b); b.dead=true; break;
         }
       }
@@ -458,10 +461,10 @@ function drawFighter(f){
   const rem = f.maxHits - f.hits;
   const pipW = 11, px0 = -(f.maxHits*pipW)/2 + pipW/2;
   ctx.fillStyle='rgba(13,27,42,.5)';
-  ctx.fillRect(-(f.maxHits*pipW)/2-4, -f.h-26, f.maxHits*pipW+8, 12);
+  ctx.fillRect(-(f.maxHits*pipW)/2-4, -f.h*2.45-26, f.maxHits*pipW+8, 12);
   for(let i=0;i<f.maxHits;i++){ ctx.beginPath();
     ctx.fillStyle = i<rem ? (f.team==='p'?'#7fd8ff':'#a9e34b') : 'rgba(255,255,255,.25)';
-    ctx.arc(px0+i*pipW, -f.h-20, 3.8, 0, 7); ctx.fill(); }
+    ctx.arc(px0+i*pipW, -f.h*2.45-20, 3.8, 0, 7); ctx.fill(); }
   ctx.restore();
 }
 function drawAim(){
