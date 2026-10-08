@@ -37,7 +37,7 @@ setTimeout(function(){
 // power-bird drops FLAMING (instant bury) & FROST (freeze rivals) orbs,
 // rolling snow terrain with real ball-ground collision.
 const SELFTEST = /[?&]selftest=1/.test(location.search);
-const SPRITE_V = 'v23'; // cache-bust: force every device to pull fresh faces
+const SPRITE_V = 'v28'; // cache-bust: force every device to pull fresh faces
 const SPRITES = {
   hat:   'sprite_hat.png?'+SPRITE_V,
   crown: 'sprite_crown.png?'+SPRITE_V,
@@ -65,7 +65,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v27.1 TEST' : 'v27.1';
+const STAMP = SELFTEST ? 'v28 TEST' : 'v28';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,244],[180,252],[360,266],[540,286],[720,312],[900,344],[1080,382],[1260,424],[1440,470]];
@@ -113,7 +113,7 @@ function mkKid(key, x, team, tint, sc){
   return { key, x, feet, y:feet-30, w:50*sc*(ASP[key]||.68), h:50*sc, sc, team, tint,
            hits:0, maxHits: team==='p'?2:3,
            state:'ready', stateT:0, clock:Math.random(), walkDir:0, walkSteps:0,
-           face:(team==='e'?-1:1), alive:true, squash:0, bobT:Math.random()*6.28 }; // greens' art faces LEFT natively -> mirror to face the reds. reds stay unmirrored: whitey's CHRIST IS KING text must read right
+           face:1, alive:true, squash:0, bobT:Math.random()*6.28 }; // green art natively faces the reds — never mirror it. reds use left-facing art (Mau5, Oct 7: all three face the rivals)
 }
 let kids=[], balls=[], parts=[], flakes=[], shake=0, state='title', time=0;
 let level=1, score=0, levelKills=0, winner=null, bannerT=0, celebrate=0;
@@ -525,7 +525,7 @@ function drawFighter(f){
   if(f.state==='cock'){ ctx.rotate(-.22*td); }
   else if(f.state==='toss'){ ctx.rotate(.28*td); }
   else if(f.state==='windup'){ ctx.rotate(-.16*td); }
-  else if(f.state==='ready'){ ctx.rotate(-.05); } // squared up toward the rivals (both teams; the face flip mirrors it)
+  else if(f.state==='ready'){ ctx.rotate(f.team==='p'?-.05:.05); } // squared up toward the rivals
   else if(f.state==='hit'||f.state==='hit2'){ ctx.rotate(.1*td); ctx.scale(1,.94); }
   else if(f.state==='daze'){ ctx.rotate(.28*Math.sin(time*25)); }
   else if(f.state==='ow'){ ctx.scale(1,.82); ctx.rotate(-.12); }
@@ -703,7 +703,7 @@ function drawEnd(){
   const winKeys = win ? ['hat','whitey','crown'] : ['green','green','green'];
   const loseKeys = win ? ['green','green','green'] : ['hat','whitey','crown'];
   sit(winKeys[0], 235, 305, 1.15, false, -.05, false);
-  sit(winKeys[1], 335, 292, 1.05, true, .05, false);
+  sit(winKeys[1], 335, 292, 1.05, false, .05, false);
   sit(winKeys[2], 252, 472, 1.18, true, .03, false);
   sit(loseKeys[0], 1062, 305, 1, true, -.04, true);
   sit(loseKeys[1], 1172, 295, .95, false, .06, true);
