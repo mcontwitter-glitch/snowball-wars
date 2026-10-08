@@ -65,7 +65,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v29.1 TEST' : 'v29.1';
+const STAMP = SELFTEST ? 'v29.2 TEST' : 'v29.2';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const GROUND_Y = 450;
@@ -417,6 +417,7 @@ function explodeKid(k, nPieces){
 }
 // ---------- draw: YETI HOMELAND ----------
 const stars = Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*300,r:.5+Math.random()*1.2,tw:Math.random()*6.28}));
+const snowDim = Array.from({length:110},(_,i)=>({x:(i*37.7+11)%W, y: GROUND_Y+8+((i*53.3+29)%(H-GROUND_Y-20))})); // plane-of-field texture
 function drawBG(){
   // SnowCraft classic daytime sky
   const sky=ctx.createLinearGradient(0,0,0,H);
@@ -434,16 +435,34 @@ function drawBG(){
   ctx.strokeStyle='rgba(190,215,235,.55)'; ctx.lineWidth=3;
   ctx.beginPath(); for(let x=0;x<=W;x+=16){ const y=bankY(x)+2; x?ctx.lineTo(x,y):ctx.moveTo(x,y); } ctx.stroke();
   fence();
-  // snow terrain
-  ctx.fillStyle='#f2f8fd';
+  // snow plane — one receding field: cool/hazy at the far edge, bright white near the viewer (Mau5: a plane of field, not just a flat field)
+  const plane = ctx.createLinearGradient(0, GROUND_Y, 0, H);
+  plane.addColorStop(0, '#dde9f4'); plane.addColorStop(.35, '#eef5fb'); plane.addColorStop(1, '#fdfeff');
+  ctx.fillStyle=plane;
   ctx.beginPath(); ctx.moveTo(0,H);
   for(let x=0;x<=W;x+=16) ctx.lineTo(x, terrainY(x));
   ctx.lineTo(W,H); ctx.closePath(); ctx.fill();
-  // terrain shading crest
+  // horizon crest where the plane meets the back bank
   ctx.strokeStyle='rgba(190,215,235,.6)'; ctx.lineWidth=3;
   ctx.beginPath(); for(let x=0;x<=W;x+=16){ const y=terrainY(x)+2; x?ctx.lineTo(x,y):ctx.moveTo(x,y); } ctx.stroke();
+  // perspective snow dimples: tiny + faint far away, bigger + clearer toward the viewer
+  for(const d of snowDim){
+    const depth = (d.y - GROUND_Y) / (H - GROUND_Y);            // 0 far, 1 near
+    ctx.fillStyle = 'rgba(163,187,210,'+(.10+.17*depth)+')';
+    ctx.beginPath();
+    ctx.ellipse(d.x, d.y, 1.4+5.2*depth, .7+2.1*depth, 0, 0, 7); ctx.fill();
+  }
+  // faint wind streaks running across the plane, tighter near the far edge
+  ctx.strokeStyle='rgba(170,196,220,.16)';
+  for(let i=0;i<4;i++){
+    const y = GROUND_Y + 18 + i*i*11;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for(let x=0;x<=W;x+=48) x?ctx.lineTo(x, y + 3*Math.sin(x*.01+i*2.1)):ctx.moveTo(x, y + 3*Math.sin(x*.01+i*2.1));
+    ctx.stroke();
+  }
   // crescent snow drifts flanking the middle, exactly like the reference
-  drift(480); drift(630); drift(810); drift(960); // Mau5: two snow mounds on each side of the no-man's land, mirrored about center
+  drift(620); drift(910); // Mau5's reference shot: two mounds total — one near each team, offset from center
 }
 function hill(x,base,w,h,rough){
   ctx.beginPath(); ctx.moveTo(x-100,H); ctx.lineTo(x-100,base);
@@ -473,6 +492,7 @@ function drift(x){
   ctx.quadraticCurveTo(x, y-h*.92, x+w*.62, y+1); ctx.closePath(); ctx.fill();
   ctx.strokeStyle='rgba(120,150,180,.35)'; ctx.lineWidth=2;
   ctx.beginPath(); ctx.moveTo(x-w, y+2); ctx.quadraticCurveTo(x, y-h, x+w, y+2); ctx.stroke();
+  ctx.fillStyle='rgba(140,168,196,.24)'; ctx.beginPath(); ctx.ellipse(x, y+6, w*1.12, 8, 0, 0, 7); ctx.fill();
 }
 function fence(){
   const N=13;
@@ -550,6 +570,7 @@ function drawFighter(f){
     ctx.restore(); return; // pure snow mound — the kid fell apart into the pieces, no mini leftover (Mau5, Oct 8)
   }
   ctx.translate(f.x, f.feet+bob);
+  if(f.alive){ ctx.fillStyle='rgba(140,168,196,.30)'; ctx.beginPath(); ctx.ellipse(0, 3, f.w*.62, f.h*.10, 0, 0, 7); ctx.fill(); }
   ctx.scale(f.face*sq, 1/sq);
   // authentic SnowCraft poses, oriented to the throw direction
   const td = f.team==='p' ? -1 : 1;   // reds throw LEFT, greens throw RIGHT
