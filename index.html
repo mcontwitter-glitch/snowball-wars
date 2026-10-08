@@ -45,7 +45,11 @@ const SPRITES = {
   lilfoot3: 'sprite_lilfoot3.png?'+SPRITE_V,
   whitey: 'sprite_whitey.png?'+SPRITE_V,
   green: 'sprite_green.png?'+SPRITE_V,
-  bigfoot:'sprite_bigfoot.png?v26'
+  bigfoot:'sprite_bigfoot.png?v26',
+  title_green:  'title_green.png?'+SPRITE_V,   // v32: 1998 pre-rendered title card cast
+  title_whitey: 'title_whitey.png?'+SPRITE_V,
+  title_crown:  'title_crown.png?'+SPRITE_V,
+  title_mau5:   'title_mau5.png?'+SPRITE_V
 };
 const IMAGES = {};
 const SPRITE_KEYS = Object.keys(SPRITES);
@@ -65,7 +69,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v31 TEST' : 'v31';
+const STAMP = SELFTEST ? 'v32 TEST' : 'v32';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const GROUND_Y = 450;
@@ -73,7 +77,7 @@ const TPTS = [[0,GROUND_Y],[180,GROUND_Y],[360,GROUND_Y],[540,GROUND_Y],[720,GRO
 // original stage 594x322 scaled to 1440x660; ball slope tuned to this field's tilt (slope .16):
 // a power-5 ball from the front line lands in the rival cluster, power 8 overshoots, like the source's tuning
 const BALL_DX = 62.5, BALL_DY = 0; // flat field: level lobs, power = range (source had no gravity)
-const MOUNDS = [480,630,810,960].map(x=>({x, w:132, h:88})); // Mau5 (Oct 8): single-screen flat side-view arena with FOUR snowdrift obstacles, two per side of center
+const MOUNDS = [90,650,790,1350].map(x=>({x, w:140, h:96})); // Mau5's card (Oct 8): two mounds on EACH side - one beyond each squad + one inboard bracket, all four visible // Mau5 (Oct 8): single-screen flat side-view arena with FOUR snowdrift obstacles, two per side of center
 function moundSurface(x){ // drift profile: parabola spanning [x-w, x+w], apex h at center
   for(const m of MOUNDS){ const dx = Math.abs(x-m.x); if(dx < m.w) return terrainY(x) - m.h*(1-(dx/m.w)*(dx/m.w)); }
   return null;
@@ -707,20 +711,66 @@ function bigText(txt,y,size,fill){ ctx.font=`bold ${size}px 'Trebuchet MS',sans-
   ctx.textAlign='center'; ctx.lineWidth=8; ctx.strokeStyle='rgba(13,27,42,.8)';
   ctx.strokeText(txt,W/2,y); ctx.fillStyle=fill; ctx.fillText(txt,W/2,y); }
 function drawTitle(){
-  ctx.font="italic 26px 'Trebuchet MS',sans-serif"; ctx.textAlign='center';
-  ctx.lineWidth=6; ctx.strokeStyle='rgba(13,27,42,.75)';
-  ctx.strokeText('BIG ENTERTAINMENT PRESENTS',W/2,96); ctx.fillStyle='#ffd76d'; ctx.fillText('BIG ENTERTAINMENT PRESENTS',W/2,96);
-  bigText("Lil Foot's SnowBall Wars", 156, 68, '#ffffff');
-  ctx.font="italic 26px 'Trebuchet MS',sans-serif"; ctx.textAlign='center';
-  ctx.lineWidth=6; ctx.strokeStyle='rgba(13,27,42,.75)';
-  ctx.strokeText("Season's Greetings from Lil Foots",W/2,200); ctx.fillStyle='#ffd76d'; ctx.fillText("Season's Greetings from Lil Foots",W/2,200);
-  ctx.font="italic 21px 'Trebuchet MS',sans-serif"; ctx.fillStyle='rgba(13,27,42,.7)'; ctx.textAlign='center';
-  ctx.fillText('Bury the rival squad. Last team standing wins the hill.', W/2, 536);
-  ctx.fillText('Drag a kid to move them — HOLD to power up, release to throw.', W/2, 560);
-  ctx.fillText('Touch or mouse — same move: press a kid, drag anywhere on your side, release to throw.', W/2, 584);
-  bigText('CLICK TO PLAY', 630, 30, '#7fd8ff');
-  ctx.font="12px sans-serif"; ctx.fillStyle='rgba(255,255,255,.65)'; ctx.textAlign='right';
-  ctx.fillText(STAMP, W-10, H-10);
+  // Mau5's spec: 1998 SnowCraft title card — fixed diagonal-down camera, one flat white snow arena,
+  // no sky, no trees, no UI. Lots of empty space, cool blue vignette at the edges.
+  ctx.fillStyle='#fcfdff'; ctx.fillRect(0,0,W,H);
+  for(let i=0;i<26;i++){                     // faint snow unevenness, deterministic
+    const bx=(i*97.3+31)%W, by=(i*61.7+17)%H, br=26+(i*29)%70;
+    const g=ctx.createRadialGradient(bx,by,0,bx,by,br);
+    g.addColorStop(0,'rgba(198,220,240,.10)'); g.addColorStop(1,'rgba(198,220,240,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(bx,by,br,br*.6,0,0,7); ctx.fill();
+  }
+  const vg=ctx.createRadialGradient(W/2,H/2,H*.34, W/2,H/2,W*.60);
+  vg.addColorStop(0,'rgba(148,178,208,0)'); vg.addColorStop(.72,'rgba(148,178,208,.08)'); vg.addColorStop(1,'rgba(148,178,208,.30)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+  // centered title, classic serif, medium dark blue-gray
+  ctx.textAlign='center';
+  ctx.font='52px Georgia, "Times New Roman", serif';
+  ctx.fillStyle='#46586e';
+  ctx.fillText("Season's Greetings", W/2, 168);
+  // two lumpy kidney snowdrifts — one left of center, one lower center-right
+  kidney(618, 442, 152, 46, 3);
+  kidney(882, 542, 170, 52, 7);
+  // green kids: two near the upper left, one lower left
+  tsprite('title_green', 200, 292);
+  tsprite('title_green', 334, 260);
+  tsprite('title_green', 242, 512);
+  // the three lil foots — one higher on the right, two lower and spaced apart
+  tsprite('title_whitey', 1160, 262);
+  tsprite('title_crown', 1008, 552);
+  tsprite('title_mau5', 1274, 524);
+  ctx.font='italic 17px Georgia, serif'; ctx.fillStyle='rgba(70,88,110,.55)';
+  ctx.fillText('click to play', W/2, 628);
+  ctx.font='11px sans-serif'; ctx.fillStyle='rgba(70,88,110,.45)'; ctx.textAlign='right';
+  ctx.fillText(STAMP, W-10, H-8);
+}
+function tsprite(key, x, footY){
+  const im = IMAGES[key]; if(!im || !im.ok) return;
+  const h = 118, w = im.width*(h/im.height);
+  const g=ctx.createRadialGradient(x+14, footY+7, 0, x+14, footY+7, 46);   // soft shadow to the lower right
+  g.addColorStop(0,'rgba(110,140,172,.36)'); g.addColorStop(1,'rgba(110,140,172,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(x+14, footY+7, 46, 13, 0, 0, 7); ctx.fill();
+  ctx.drawImage(im, x-w/2, footY-h, w, h);
+}
+function kidney(cx, cy, w, h, seed){
+  // lumpy kidney-shaped snowdrift: bumpy union of circles, dent in the top edge, blue-gray underside
+  const R=(n)=>{ const v=Math.sin(seed*99+n*37.7)*43758.5; return v-Math.floor(v); };
+  const N=9;
+  ctx.save();
+  ctx.beginPath();
+  for(let i=0;i<N;i++){
+    const t=i/(N-1);
+    let bx=cx-w/2+t*w, by=cy - Math.sin(t*Math.PI)*h*(.55+.45*R(i)), br=h*(.34+.30*R(i+9));
+    if(i===4){ by=cy-h*.16; br=h*.20; }        // kidney dent: middle bump sinks
+    ctx.moveTo(bx+br,by); ctx.arc(bx,by,br,0,7);
+  }
+  ctx.fillStyle='#fbfdff'; ctx.fill();
+  ctx.globalCompositeOperation='source-atop'; // everything below clips to the blob
+  const ug=ctx.createLinearGradient(0, cy-h*.1, 0, cy+h*.9);
+  ug.addColorStop(0,'rgba(146,172,200,0)'); ug.addColorStop(1,'rgba(146,172,200,.60)');
+  ctx.fillStyle=ug; ctx.beginPath();
+  ctx.ellipse(cx, cy+h*.74, w*.52, h*.78, 0, 0, 7); ctx.fill();
+  ctx.restore();
 }
 function drawBanner(){
   ctx.fillStyle='rgba(10,18,34,.35)'; ctx.fillRect(0,0,W,H);
