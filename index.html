@@ -46,10 +46,7 @@ const SPRITES = {
   whitey: 'sprite_whitey.png?'+SPRITE_V,
   green: 'sprite_green.png?'+SPRITE_V,
   bigfoot:'sprite_bigfoot.png?v26',
-  title_green:  'title_green.png?'+SPRITE_V,   // v32: 1998 pre-rendered title card cast
-  title_whitey: 'title_whitey.png?'+SPRITE_V,
-  title_crown:  'title_crown.png?'+SPRITE_V,
-  title_mau5:   'title_mau5.png?'+SPRITE_V
+  title_green:  'title_green.png?'+SPRITE_V    // v33: title card cast (green kids pre-rendered; trio uses the real in-game sprites)
 };
 const IMAGES = {};
 const SPRITE_KEYS = Object.keys(SPRITES);
@@ -69,7 +66,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v32 TEST' : 'v32';
+const STAMP = SELFTEST ? 'v33 TEST' : 'v33';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const GROUND_Y = 450;
@@ -735,10 +732,10 @@ function drawTitle(){
   tsprite('title_green', 200, 292);
   tsprite('title_green', 334, 260);
   tsprite('title_green', 242, 512);
-  // the three lil foots — one higher on the right, two lower and spaced apart
-  tsprite('title_whitey', 1160, 262);
-  tsprite('title_crown', 1008, 552);
-  tsprite('title_mau5', 1274, 524);
+  // the three lil foots — Mau5's actual characters: whitey higher right, MC's crown kid + BudE's hardhat kid lower and spaced apart
+  tsprite('whitey', 1160, 262);
+  tsprite('crown', 1008, 552);
+  tsprite('hat', 1274, 524);
   ctx.font='italic 17px Georgia, serif'; ctx.fillStyle='rgba(70,88,110,.55)';
   ctx.fillText('click to play', W/2, 628);
   ctx.font='11px sans-serif'; ctx.fillStyle='rgba(70,88,110,.45)'; ctx.textAlign='right';
