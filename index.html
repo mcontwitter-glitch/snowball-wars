@@ -102,7 +102,7 @@ function sfxPower(){ [660,880,1320].forEach((f,i)=>{ tone(f,f,.18,'triangle',.1)
 function sfxFreeze(){ tone(1800,2400,.35,'sine',.08); tone(2400,3200,.3,'sine',.05); }
 function sfxRoar(){ tone(150,55,.6,'sawtooth',.3); tone(95,42,.75,'square',.16); }
 function sfxMega(){ tone(520,80,.32,'sawtooth',.24); }
-function startBigfoot(){ bf={t:0, phase:'rise', x:1230, thrown:0}; streak=0; }
+function startBigfoot(){ bf={t:0, phase:'rise', x:1360, thrown:0}; streak=0; }
 
 // ---------- entities: faithful port of the 1999 SnowCraft Lingo source ----------
 // RED = your 3 kids, 2 hits each. GREEN = rival wave, 3 hits each (ow -> down -> dead).
@@ -318,6 +318,8 @@ function update(dt){
   shake=Math.max(0,shake-dt*30);
   if(state==='banner'){ bannerT-=dt; if(bannerT<=0){ state='play'; } return; }
   if(state==='celebrate'){ celebrate-=dt;
+    if(bf){ bf.t+=dt; if(bf.phase!=='sink' && bf.t>0.5){ bf.phase='sink'; bf.t=0; }
+      else if(bf.phase==='sink' && bf.t>=0.9){ bf=null; } }
     for(const k of greens()) k.bobT += dt*6;
     if(celebrate<=0){ level++; reset(); state='banner'; bannerT=1.6; }
     return; }
@@ -620,8 +622,8 @@ function drawBigfoot(){
   if(!bf) return; const img = IMAGES.bigfoot;
   const clipY = bankY(bf.x)-6;
   let lift = bf.phase==='rise' ? Math.min(1, bf.t/0.85) : bf.phase==='sink' ? Math.max(0,1-bf.t/0.85) : 1;
-  const hgt = 300, wid = hgt*(img.ok ? img.width/img.height : .63);
-  const feetY = clipY + 130 + (1-lift)*380;
+  const hgt = 360, wid = hgt*(img.ok ? img.width/img.height : .63);
+  const feetY = clipY + 120 + (1-lift)*420;
   ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,clipY); ctx.clip();   // pops up from behind the back ridge
   ctx.translate(bf.x, feetY); ctx.scale(-1,1);                      // face the rival squad
   if(img.ok){ ctx.drawImage(img, -wid/2, -hgt, wid, hgt); }
@@ -779,13 +781,17 @@ function loop(ts){
   if(state==='banner') drawBanner();
   if(state==='end') drawEnd();
   drawHUD();
+  if(flashT>0 && state==='play'){ ctx.globalAlpha=Math.min(1, flashT);
+    bigText(flashMsg, 118, 44, '#ffd76d'); ctx.globalAlpha=1; }
   ctx.restore();
   requestAnimationFrame(loop);
 }
 function boot(){ window.__GAME_BOOTED=true; reset(); requestAnimationFrame(loop); }
 if(SELFTEST){ setTimeout(startGame, 500); }
-if(/[?&]bf=1/.test(location.search)){ setTimeout(startGame, 300);
-  const bfpoll = setInterval(()=>{ if(state==='play'){ startBigfoot(); clearInterval(bfpoll); } }, 400); }
+if(/[?&]bf=1/.test(location.search)){
+  const bfpoll = setInterval(()=>{ if(!window.__GAME_BOOTED) return;
+    if(state==='title'){ startGame(); }
+    else if(state==='play'){ startBigfoot(); clearInterval(bfpoll); } }, 400); }
 </script>
 </body>
 </html>
