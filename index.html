@@ -66,7 +66,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v34 TEST' : 'v34';
+const STAMP = SELFTEST ? 'v35 TEST' : 'v35';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const GROUND_Y = 450;
@@ -74,7 +74,8 @@ const TPTS = [[0,GROUND_Y],[180,GROUND_Y],[360,GROUND_Y],[540,GROUND_Y],[720,GRO
 // original stage 594x322 scaled to 1440x660; ball slope tuned to this field's tilt (slope .16):
 // a power-5 ball from the front line lands in the rival cluster, power 8 overshoots, like the source's tuning
 const BALL_DX = 62.5, BALL_DY = 0; // flat field: level lobs, power = range (source had no gravity)
-const MOUNDS = [580,950].map(x=>({x, w:130, h:70})); // photo-measured: green-side drift ~40% width near the greens, red-side ~66% near the trio, clear center gap // Mau5's re-sent reference settles it: TWO kidney drifts TOTAL - one near each team, offset from center toward the squads (620 green side, 910 red side) // Mau5's card (Oct 8): two mounds on EACH side - one beyond each squad + one inboard bracket, all four visible // Mau5 (Oct 8): single-screen flat side-view arena with FOUR snowdrift obstacles, two per side of center
+// Mau5's 'copy this exact setup': photo-measured (kid=69px). Green drift = small crescent AT the greens' right edge (photo x307-420 vs greens 124-373). Red drift = BIG U-bowl AT the trio's left edge (photo x680-843 vs reds 697-988, red kid peeks from behind). Drifts integrated into the formations' inner edges, ~27% clear center gap like the photo.
+const MOUNDS = [{x:600, w:132, h:77, shape:'crescent'},{x:1050, w:190, h:110, shape:'bowl'}];
 function moundSurface(x){ // drift profile: parabola spanning [x-w, x+w], apex h at center
   for(const m of MOUNDS){ const dx = Math.abs(x-m.x); if(dx < m.w) return terrainY(x) - m.h*(1-(dx/m.w)*(dx/m.w)); }
   return null;
@@ -442,7 +443,7 @@ function drawBG(){
   ctx.fillStyle='#4a6572';
   ctx.fillText('BIG ENTERTAINMENT', W/2, 250);
   ctx.textAlign='left'; ctx.textBaseline='alphabetic';
-  for(const m of MOUNDS) drift(m.x, m.w, m.h); // Mau5: four snowdrift obstacles, two per side
+  for(const m of MOUNDS) drift(m.x, m.w, m.h, m.shape); // Mau5: four snowdrift obstacles, two per side
 }
 function hill(x,base,w,h,rough){
   ctx.beginPath(); ctx.moveTo(x-100,H); ctx.lineTo(x-100,base);
@@ -462,32 +463,43 @@ function tree(x,y,h,s){
     ctx.arc(x+b[1]*h*.17, by-h*.16, 3.4*s, 0, 7); ctx.fill(); });
 }
 function bankY(x){ return terrainY(x) - 92 + 10*Math.sin(x*0.004); }
-function drift(x, w, h){
-  // Mau5's reference: lumpy KIDNEY-shaped drift (matches the card mounds) — bumpy top with a
-  // sunken middle dent, bumpy lower edge kissing the ground, blue-gray underside, ground shadow
+function drift(x, w, h, shape){
+  // Mau5's 'copy this exact setup' — drifts straight off the card: glossy pale icy-blue fill
+  // (#d0e0ee family), deeper blue-gray underside, soft drop shadow to the right. Two shapes:
+  // 'crescent' (small, tapered ends, green side) and 'bowl' (big U with sunken upper-left dent, red side)
   const y = terrainY(x);
   const R=(n)=>{ const v=Math.sin(x*.13+n*37.7)*43758.5; return v-Math.floor(v); };
-  ctx.fillStyle='rgba(120,130,142,.20)';                    // soft grey drop shadow, offset bottom-right like the card
-  ctx.beginPath(); ctx.ellipse(x+10, y+5, w*1.04, 8, 0, 0, 7); ctx.fill();
+  ctx.fillStyle='rgba(120,130,142,.20)';                    // soft diffused drop shadow, cast right like the card
+  ctx.beginPath(); ctx.ellipse(x+w*.06, y+5, w*1.02, 8, 0, 0, 7); ctx.fill();
   const N=9;
   const bumps=[];
   for(let i=0;i<N;i++){
     const t=i/(N-1);
     let bx=x-w+t*2*w, br=h*(.30+.26*R(i+9)), by=y+2-br - Math.sin(t*Math.PI)*h*(.62+.38*R(i));
-    if(i===4){ by = Math.max(by, y-h*.15); }                // kidney dent: middle bump sinks
+    if(shape==='crescent'){                                  // tapered ends, belly in the middle — photo's small crescent drift
+      br *= (.55+.45*Math.sin(t*Math.PI)); if(i===1||i===7){ br*=.6; }
+    }
+    if(shape==='bowl' && (i===2||i===3)){ by = Math.max(by, y-h*.34); }   // sunken bowl dent, upper-left of the U
+    if(shape!=='bowl' && i===4){ by = Math.max(by, y-h*.15); }            // kidney dent for crescent
     bumps.push([bx,by,br]);
   }
   ctx.save();
-  ctx.beginPath();                                          // soft blue-gray rim so the lump reads on pure white
+  ctx.beginPath();                                          // deeper blue-gray rim so the lump reads on pure white
   bumps.forEach(([bx,by,br])=>{ ctx.moveTo(bx+br+3,by); ctx.arc(bx,by,br+3,0,7); });
-  ctx.fillStyle='rgba(150,172,198,.55)'; ctx.fill();
+  ctx.fillStyle='rgba(165,187,212,.60)'; ctx.fill();
   ctx.beginPath();
   bumps.forEach(([bx,by,br])=>{ ctx.moveTo(bx+br,by); ctx.arc(bx,by,br,0,7); });
-  ctx.fillStyle='#feffff'; ctx.fill();
-  ctx.globalCompositeOperation='source-atop';               // underside-only shading, clipped to the blob
-  const ug=ctx.createLinearGradient(0, y-h*.32, 0, y+3);
-  ug.addColorStop(0,'rgba(146,172,200,0)'); ug.addColorStop(1,'rgba(146,172,200,.55)');
+  const fg=ctx.createLinearGradient(0, y-h, 0, y+2);        // glossy icy-blue fill like the card
+  fg.addColorStop(0,'#eef6fc'); fg.addColorStop(.55,'#ddebf6'); fg.addColorStop(1,'#cfdfeb');
+  ctx.fillStyle=fg; ctx.fill();
+  ctx.globalCompositeOperation='source-atop';               // underside shading, clipped to the blob
+  const ug=ctx.createLinearGradient(0, y-h*.30, 0, y+3);
+  ug.addColorStop(0,'rgba(165,187,212,0)'); ug.addColorStop(1,'rgba(150,172,198,.55)');
   ctx.fillStyle=ug; ctx.fillRect(x-w*1.1, y-h, w*2.2, h+6);
+  ctx.globalCompositeOperation='source-atop';               // glossy top highlight, card-style
+  const hl=ctx.createLinearGradient(0, y-h, 0, y-h*.35);
+  hl.addColorStop(0,'rgba(255,255,255,.85)'); hl.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=hl; ctx.fillRect(x-w*1.1, y-h, w*2.2, h);
   ctx.restore();
 }
 function fence(){
