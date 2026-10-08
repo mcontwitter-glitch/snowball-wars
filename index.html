@@ -66,7 +66,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v36 TEST' : 'v36';
+const STAMP = SELFTEST ? 'v37 TEST' : 'v37';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const GROUND_Y = 450;
@@ -74,17 +74,20 @@ const TPTS = [[0,GROUND_Y],[180,GROUND_Y],[360,GROUND_Y],[540,GROUND_Y],[720,GRO
 // original stage 594x322 scaled to 1440x660; ball slope tuned to this field's tilt (slope .16):
 // a power-5 ball from the front line lands in the rival cluster, power 8 overshoots, like the source's tuning
 const BALL_DX = 62.5, BALL_DY = 0; // flat field: level lobs, power = range (source had no gravity)
-// Mau5's 'copy this exact setup': photo-measured (kid=69px). Green drift = small crescent AT the greens' right edge (photo x307-420 vs greens 124-373). Red drift = BIG U-bowl AT the trio's left edge (photo x680-843 vs reds 697-988, red kid peeks from behind). Drifts integrated into the formations' inner edges, ~27% clear center gap like the photo.
-const MOUNDS = [{x:600, w:132, h:77, shape:'crescent'},{x:1050, w:190, h:77, shape:'crescent'}]; // Mau5 'not the second' — second drift is a LOW WIDE CURVED MOUND like the first (photo: both mounds 65px tall, second just wider at 163px vs 113px), NOT the tall U-bowl
-function moundSurface(x){ // drift profile: parabola spanning [x-w, x+w], apex h at center
-  for(const m of MOUNDS){ const dx = Math.abs(x-m.x); if(dx < m.w) return terrainY(x) - m.h*(1-(dx/m.w)*(dx/m.w)); }
+// Mau5 'Just use this exact image. Show me you can copy this exact image' — every element blob-measured from file_374.jpg
+// (photo 1280x844 -> game 1440x660: x*1.125, y*0.782). Drifts sit MID-FIELD at photo depths, not on the ground line:
+// crescent: photo x289-480 y178-282 (below the top greens, right of the bottom green) -> cx432 halfw107 h81 baseY221
+// flat low mound: photo x773-960 y454-490 (above/behind hardhat) -> cx974 halfw105 h28 baseY383
+const MOUNDS = [{x:432, w:107, h:81, shape:'crescent', baseY:221},{x:974, w:105, h:28, shape:'flat', baseY:383}];
+function moundSurface(x){ // drift profile: parabola spanning [x-w, x+w], apex h above the drift's own baseline
+  for(const m of MOUNDS){ const dx = Math.abs(x-m.x); if(dx < m.w) return { y: m.baseY - m.h*(1-(dx/m.w)*(dx/m.w)), m }; }
   return null;
 }
 function fenceX(y){ return 1551.5 - 2.3652*y; } // the source's movement fence: locH >= (320-locV)*2, scaled
 function clampRed(k){ k.x = Math.max(Math.min(k.x, W-50), fenceX(k.feet));
-  const ty = terrainY(k.x); k.feet = Math.max(ty-80, Math.min(ty+12, k.feet)); k.y = k.feet-30; }
-function clampGreen(k){ k.x = Math.max(Math.min(k.x, W-60), 60);
-  const ty = terrainY(k.x); k.feet = Math.max(ty-80, Math.min(ty+12, k.feet)); k.y = k.feet-30; }
+  const hy = k.homeY || terrainY(k.x); k.feet = Math.max(hy-120, Math.min(hy+150, k.feet)); k.y = k.feet-30; }
+function clampGreen(k){ k.x = Math.max(Math.min(k.x, Math.min(880, k.homeX+110)), Math.max(60, k.homeX-110));
+  k.feet = Math.max(k.homeY-26, Math.min(k.homeY+26, k.feet)); k.y = k.feet-30; }
 function terrainY(x){
   const n = TPTS.length-1, fx = Math.max(0, Math.min(W, x)) / W * n;
   const i = Math.min(n-1, Math.floor(fx)), t = fx - i;
@@ -133,24 +136,32 @@ function reds(){ return kids.filter(k=>k.team==='p'); }
 function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
   kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null; streak=0; bf=null;
-  const pk=['hat','whitey','crown'], psc=[1.64,1.54,1.61]; // Mau5: match his screenshot size (~12% height, 'same size characters as well')
-  [1245,1125,1000].forEach((x,i)=>{ const k=mkKid(pk[i], x, 'p', 0, psc[i]); k.dz=[0,8,3][i]; k.feet+=k.dz; k.y=k.feet-30; kids.push(k); }); // trio spread like the screenshot, 50yd gap holds
+  // photo-exact trio TRIANGLE (file_374): crown HIGH at (1237, feet 372) — photo x1049-1151 y316-476;
+  // hardhat LOW-CENTER (950, feet 557) — photo x794-894 y552-712; whitey LOW-RIGHT (1237, feet 583) — photo x1058-1143 y586-746.
+  // trio size = photo 160px tall = 125px on the 660 canvas (sc ~1.0).
+  const pk=['hat','whitey','crown'], psc=[1.0,0.98,1.02], pxx=[950,1237,1237], pfeet=[557,583,372];
+  pxx.forEach((x,i)=>{ const k=mkKid(pk[i], x, 'p', 0, psc[i]); k.feet=pfeet[i]; k.homeY=pfeet[i]; k.dz=pfeet[i]-GROUND_Y; k.y=k.feet-30; kids.push(k); });
+  // photo-exact green L-cluster, FAR + SMALL (74px photo = 58px game, sc 0.46): two up top
+  // (photo cx186 y51-125, cx410 y56-132), one below-left (photo cx182 y191-264).
   const gd = greensPerLevel(level);
-  // reference formation: tight staggered cluster on the upper-left slope (2 back + 1 front for the opening trio)
-  const gSlots = [];
-  for(let i=0;i<gd;i++){
-    if(i<4) gSlots.push({x:265+i*115, sc:[1.56,1.5,1.53,1.56][i], back:0});          // front line, screenshot size — 50 yards (500px) from the red line
-    else    gSlots.push({x:210+((i-4)%4)*115 + Math.floor((i-4)/4)*57, sc:1.34, back:1}); // back band, up-slope stagger like the screenshot
-  }
-  gSlots.sort((a,b)=> (a.back-b.back) || (a.x-b.x));   // back band drawn first, each band up-slope first
-  for(const g of gSlots){ const k=mkKid('green', g.x, 'e', 0, g.sc); if(g.back){ k.dz=-34; k.feet+=k.dz; k.y=k.feet-30; } kids.push(k); } // back band stands a touch up-screen = depth, flat field otherwise
+  const gTop = Math.ceil(gd/2), gSlots = [];
+  for(let i=0;i<gTop;i++)    gSlots.push({x:209+252*i, feet:98,  sc:0.46}); // top row (back)
+  for(let j=0;j<gd-gTop;j++) gSlots.push({x:205+252*j, feet:207, sc:0.46}); // bottom row, under the top-left kid like the photo
+  gSlots.sort((a,b)=> (a.feet-b.feet) || (a.x-b.x));   // far row drawn first
+  for(const g of gSlots){ const k=mkKid('green', g.x, 'e', 0, g.sc); k.feet=g.feet; k.homeY=g.feet; k.homeX=g.x; k.dz=g.feet-GROUND_Y; k.y=k.feet-30; kids.push(k); }
   flakes = Array.from({length:90},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.4+Math.random()*1.2,drift:Math.random()*6.28}));
 }
 function kidFeet(k){ k.feet = terrainY(k.x) + (k.dz||0); k.y = k.feet-30; }
 function throwBall(k, power){
   const dir = k.team==='p' ? -1 : 1;
-  // source: the ball spawns AT the kid's sprite loc - aim is where you park the kid
-  balls.push({x:k.x+dir*8, y:k.feet-k.h*.45, dir, from:k.team, power,
+  // depth-staged field: the ball flies toward the target row's mid-band (photo layout puts teams at different depths)
+  const targets = (k.team==='p'?greens():reds()).filter(t=>t.alive && t.state!=='down');
+  let vy = 0;
+  if(targets.length){
+    const t = targets[Math.floor(Math.random()*targets.length)];
+    vy = ((t.feet - t.h*.55) - (k.feet-k.h*.45)) / Math.max(2, power*2);
+  }
+  balls.push({x:k.x+dir*8, y:k.feet-k.h*.45, dir, from:k.team, power, vy,
               phase:'rise', steps:power*2, dropSteps:10, r:11+power*1.5, spin:Math.random()*6, t:0});
   k.state='toss'; k.stateT=5;
   if(power>=8){ tone(920,180,.25,'sine',.2); } else { sfxThrow(); } // source: "Whoosh" only for the range-16 ball
@@ -323,10 +334,11 @@ function update(dt){
         if(b.steps<=0){ b.phase='drop'; if(b.from==='p') streak=0; }  // a miss breaks the streak
         else {
           b.x += b.dir*BALL_DX; b.y += b.dir*BALL_DY; b.steps--; b.spin+=.4;
+          b.y += b.vy||0;                            // depth-staged throws climb/descend toward the target row
           const ms = moundSurface(b.x);           // snowdrift obstacles: the ball rides up and over like the source's rolling balls
-          if(ms!==null && b.y > ms - b.r*.4){
-            if(!b.wasMound){ poof(b.x, ms-6, 4); b.wasMound = 1; } else b.wasMound = 0;
-            b.y = ms - b.r*.4;
+          if(ms && b.y > ms.y - b.r*.4 && b.y < ms.m.baseY + 30){   // only near the drift's own depth — balls flying in front pass clean
+            if(!b.wasMound){ poof(b.x, ms.y-6, 4); b.wasMound = 1; } else b.wasMound = 0;
+            b.y = ms.y - b.r*.4;
           } else b.wasMound = 0;
           const targets = b.from==='p' ? greens() : reds();
           for(const k of targets){
@@ -339,8 +351,9 @@ function update(dt){
         }
       } else {
         b.x += b.dir*BALL_DX/2; b.y += b.dir*BALL_DY/2; b.spin+=.4;
+        b.y += (b.vy||0)*.25;
         const ms2 = moundSurface(b.x);
-        if(ms2!==null && b.y > ms2 - b.r*.4) b.y = ms2 - b.r*.4;
+        if(ms2 && b.y > ms2.y - b.r*.4 && b.y < ms2.m.baseY + 30) b.y = ms2.y - b.r*.4;
         b.r = Math.max(2, b.r*.93); b.dropSteps--;
         if(b.dropSteps<=0){ b.dead=true; break; }
       }
@@ -394,16 +407,17 @@ function update(dt){
         const t=es[Math.floor(Math.random()*es.length)];
         // simulate the straight rise (hits land only during rise, like the source)
         const sim = (x0, p) => {
-          let x = x0-8, y = terrainY(x0) - k.h*.45;
+          let x = x0-8, y = k.feet - k.h*.45;
+          const vy = ((t.feet - t.h*.55) - y) / Math.max(2, p*2);   // same cross-depth aim as throwBall
           for(let n=0; n<p*2; n++){
-            x -= BALL_DX; y -= BALL_DY;
+            x -= BALL_DX; y += vy;
             if(Math.abs(x - t.x) < t.w/2+6 && y > t.feet-t.h*2.45-10 && y < t.feet+6) return true;
           }
           return false;
         };
         let best=null;
         for(let p=3; p<=8 && !best; p++){
-          for(let x=1245; x>=980; x-=6){ if(sim(x,p)){ best={x,p}; break; } }
+          for(let x=1237; x>=850; x-=6){ if(sim(x,p)){ best={x,p}; break; } }
         }
         if(best){ k.x = best.x; kidFeet(k); throwBall(k, best.p); }
       }
@@ -434,16 +448,22 @@ function explodeKid(k, nPieces){
 const stars = Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*300,r:.5+Math.random()*1.2,tw:Math.random()*6.28}));
 const snowDim = Array.from({length:110},(_,i)=>({x:(i*37.7+11)%W, y: GROUND_Y+8+((i*53.3+29)%(H-GROUND_Y-20))})); // plane-of-field texture
 function drawBG(){
-  // Mau5's Season's Greetings card reference: pure-white minimal battleground — no sky tint, no sun,
-  // no snowbank, no fence; only the kids, the drifts, and their soft grey shadows (v31)
-  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);
-  // Mau5's gameplay reference (Oct 8): BIG ENTERTAINMENT branding across mid-field, muted blue-grey serif
-  ctx.font='bold 96px Georgia, "Times New Roman", serif';
+  // Mau5's exact image (file_374): near-white field, soft blue-grey sky band across the top
+  // (photo y0-112 gradient #e4edf4 -> white), BIG ENTERTAINMENT serif centered at photo
+  // (cx640,cy373 -> 720,292), 630px photo width -> 709px game -> 64px Georgia, letters #3f5d75.
+  ctx.fillStyle='#fdfdfe'; ctx.fillRect(0,0,W,H);
+  const sky = ctx.createLinearGradient(0,0,0,105);
+  sky.addColorStop(0,'#e2ebf3'); sky.addColorStop(1,'rgba(226,235,243,0)');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,105);
+  const wash = ctx.createRadialGradient(0,H,80, 0,H,1080);   // photo's soft bottom-left snow shading
+  wash.addColorStop(0,'rgba(199,210,223,.5)'); wash.addColorStop(1,'rgba(199,210,223,0)');
+  ctx.fillStyle=wash; ctx.fillRect(0,0,W,H);
+  ctx.font='bold 64px Georgia, "Times New Roman", serif';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle='#4a6572';
-  ctx.fillText('BIG ENTERTAINMENT', W/2, 250);
+  ctx.fillStyle='#3f5d75';
+  ctx.fillText('BIG ENTERTAINMENT', 720, 292);
   ctx.textAlign='left'; ctx.textBaseline='alphabetic';
-  for(const m of MOUNDS) drift(m.x, m.w, m.h, m.shape); // Mau5: four snowdrift obstacles, two per side
+  for(const m of MOUNDS) drift(m.x, m.w, m.h, m.shape, m.baseY);
 }
 function hill(x,base,w,h,rough){
   ctx.beginPath(); ctx.moveTo(x-100,H); ctx.lineTo(x-100,base);
@@ -463,40 +483,57 @@ function tree(x,y,h,s){
     ctx.arc(x+b[1]*h*.17, by-h*.16, 3.4*s, 0, 7); ctx.fill(); });
 }
 function bankY(x){ return terrainY(x) - 92 + 10*Math.sin(x*0.004); }
-function drift(x, w, h, shape){
-  // Mau5's 'copy this exact setup' — drifts straight off the card: glossy pale icy-blue fill
-  // (#d0e0ee family), deeper blue-gray underside, soft drop shadow to the right. Two shapes:
-  // 'crescent' (small, tapered ends, green side) and 'bowl' (big U with sunken upper-left dent, red side)
-  const y = terrainY(x);
+function drift(x, w, h, shape, baseY){
+  // photo-exact drifts: pale icy-blue glossy fill, blue-gray rim/underside, white top highlight,
+  // soft shadow cast right. 'crescent' (lumpy circle-union) and 'flat' (ONE solid smooth low mound).
+  const y = (baseY!==undefined) ? baseY : terrainY(x);
   const R=(n)=>{ const v=Math.sin(x*.13+n*37.7)*43758.5; return v-Math.floor(v); };
-  ctx.fillStyle='rgba(120,130,142,.20)';                    // soft diffused drop shadow, cast right like the card
-  ctx.beginPath(); ctx.ellipse(x+w*.06, y+5, w*1.02, 8, 0, 0, 7); ctx.fill();
+  if(shape==='flat'){
+    ctx.save();
+    ctx.fillStyle='rgba(120,130,142,.20)';
+    ctx.beginPath(); ctx.ellipse(x+8, y+5, w*1.02, 7, 0, 0, 7); ctx.fill();
+    ctx.beginPath();                                     // solid rim behind (blue-gray outline reads on white)
+    ctx.moveTo(x-w-3, y+2); ctx.quadraticCurveTo(x, y-h-9, x+w+3, y+2); ctx.quadraticCurveTo(x, y+12, x-w-3, y+2);
+    ctx.fillStyle='rgba(165,187,212,.60)'; ctx.fill();
+    ctx.beginPath();                                     // solid glossy body, gentle crown
+    ctx.moveTo(x-w, y+2); ctx.quadraticCurveTo(x, y-h-6, x+w, y+2); ctx.quadraticCurveTo(x, y+10, x-w, y+2);
+    const fg=ctx.createLinearGradient(0, y-h, 0, y+2);
+    fg.addColorStop(0,'#eef6fc'); fg.addColorStop(.55,'#ddebf6'); fg.addColorStop(1,'#cfdfeb');
+    ctx.fillStyle=fg; ctx.fill();
+    ctx.globalCompositeOperation='source-atop';
+    const hl=ctx.createLinearGradient(0, y-h, 0, y-h*.35);
+    hl.addColorStop(0,'rgba(255,255,255,.85)'); hl.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=hl; ctx.fillRect(x-w, y-h, w*2, h);
+    const ug=ctx.createLinearGradient(0, y-h*.30, 0, y+3);
+    ug.addColorStop(0,'rgba(150,172,198,0)'); ug.addColorStop(1,'rgba(150,172,198,.55)');
+    ctx.fillStyle=ug; ctx.fillRect(x-w, y-h, w*2, h);
+    ctx.restore();
+    return;
+  }
+  ctx.fillStyle='rgba(120,130,142,.20)';
+  ctx.beginPath(); ctx.ellipse(x+10, y+5, w*1.04, 8, 0, 0, 7); ctx.fill();
   const N=9;
   const bumps=[];
   for(let i=0;i<N;i++){
     const t=i/(N-1);
     let bx=x-w+t*2*w, br=h*(.30+.26*R(i+9)), by=y+2-br - Math.sin(t*Math.PI)*h*(.62+.38*R(i));
-    if(shape==='crescent'){                                  // tapered ends, belly in the middle — photo's small crescent drift
-      br *= (.55+.45*Math.sin(t*Math.PI)); if(i===1||i===7){ br*=.6; }
-    }
-    if(shape==='bowl' && (i===2||i===3)){ by = Math.max(by, y-h*.34); }   // sunken bowl dent, upper-left of the U
-    if(shape!=='bowl' && i===4){ by = Math.max(by, y-h*.15); }            // kidney dent for crescent
+    if(shape==='crescent'){ br *= (.55+.45*Math.sin(t*Math.PI)); if(i===1||i===7){ br*=.6; } if(i===4){ by=Math.max(by,y-h*.15); } }
     bumps.push([bx,by,br]);
   }
   ctx.save();
-  ctx.beginPath();                                          // deeper blue-gray rim so the lump reads on pure white
+  ctx.beginPath();
   bumps.forEach(([bx,by,br])=>{ ctx.moveTo(bx+br+3,by); ctx.arc(bx,by,br+3,0,7); });
   ctx.fillStyle='rgba(165,187,212,.60)'; ctx.fill();
   ctx.beginPath();
   bumps.forEach(([bx,by,br])=>{ ctx.moveTo(bx+br,by); ctx.arc(bx,by,br,0,7); });
-  const fg=ctx.createLinearGradient(0, y-h, 0, y+2);        // glossy icy-blue fill like the card
+  const fg=ctx.createLinearGradient(0, y-h, 0, y+2);
   fg.addColorStop(0,'#eef6fc'); fg.addColorStop(.55,'#ddebf6'); fg.addColorStop(1,'#cfdfeb');
   ctx.fillStyle=fg; ctx.fill();
-  ctx.globalCompositeOperation='source-atop';               // underside shading, clipped to the blob
+  ctx.globalCompositeOperation='source-atop';
   const ug=ctx.createLinearGradient(0, y-h*.30, 0, y+3);
   ug.addColorStop(0,'rgba(165,187,212,0)'); ug.addColorStop(1,'rgba(150,172,198,.55)');
   ctx.fillStyle=ug; ctx.fillRect(x-w*1.1, y-h, w*2.2, h+6);
-  ctx.globalCompositeOperation='source-atop';               // glossy top highlight, card-style
+  ctx.globalCompositeOperation='source-atop';
   const hl=ctx.createLinearGradient(0, y-h, 0, y-h*.35);
   hl.addColorStop(0,'rgba(255,255,255,.85)'); hl.addColorStop(1,'rgba(255,255,255,0)');
   ctx.fillStyle=hl; ctx.fillRect(x-w*1.1, y-h, w*2.2, h);
@@ -873,7 +910,7 @@ function loop(ts){
   update(dt);
   ctx.save();
   if(shake>0) ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
-  drawBG(); drawBigfoot(); for(const k of kids) drawFighter(k);
+  drawBG(); drawBigfoot(); for(const k of [...kids].sort((a,b)=>a.feet-b.feet)) drawFighter(k);
   drawBalls(); drawAim(); drawSnow(); drawDragUI();
   if(state==='title') drawTitle();
   if(state==='banner') drawBanner();
