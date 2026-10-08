@@ -126,17 +126,17 @@ function reds(){ return kids.filter(k=>k.team==='p'); }
 function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
   kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null; streak=0; bf=null;
-  const pk=['hat','whitey','crown'], psc=[1.26,1.18,1.23]; // Mau5: smaller kids (~9% height) = way more field between squads
-  [1345,1175,1015].forEach((x,i)=>{ const k=mkKid(pk[i], x, 'p', 0, psc[i]); k.dz=[0,8,3][i]; k.feet+=k.dz; k.y=k.feet-30; kids.push(k); }); // spread to the right edge (Mau5: way more distance)
+  const pk=['hat','whitey','crown'], psc=[1.64,1.54,1.61]; // Mau5: match his screenshot size (~12% height, 'same size characters as well')
+  [1245,1125,1000].forEach((x,i)=>{ const k=mkKid(pk[i], x, 'p', 0, psc[i]); k.dz=[0,8,3][i]; k.feet+=k.dz; k.y=k.feet-30; kids.push(k); }); // trio spread like the screenshot, 50yd gap holds
   const gd = greensPerLevel(level);
   // reference formation: tight staggered cluster on the upper-left slope (2 back + 1 front for the opening trio)
   const gSlots = [];
   for(let i=0;i<gd;i++){
-    if(i<4) gSlots.push({x:295+i*110, sc:[1.2,1.15,1.17,1.2][i], back:0});          // front line — 50 yards (500px) from the red line
-    else    gSlots.push({x:265+((i-4)%4)*110 + Math.floor((i-4)/4)*52, sc:1.04, back:1}); // back band, tighter + smaller = deeper
+    if(i<4) gSlots.push({x:265+i*115, sc:[1.56,1.5,1.53,1.56][i], back:0});          // front line, screenshot size — 50 yards (500px) from the red line
+    else    gSlots.push({x:210+((i-4)%4)*115 + Math.floor((i-4)/4)*57, sc:1.34, back:1}); // back band, up-slope stagger like the screenshot
   }
   gSlots.sort((a,b)=> (a.back-b.back) || (a.x-b.x));   // back band drawn first, each band up-slope first
-  for(const g of gSlots){ const k=mkKid('green', g.x, 'e', 0, g.sc); if(g.back){ k.dz=-30; k.feet+=k.dz; k.y=k.feet-30; } kids.push(k); } // back band stands a touch up-screen = depth, flat field otherwise
+  for(const g of gSlots){ const k=mkKid('green', g.x, 'e', 0, g.sc); if(g.back){ k.dz=-34; k.feet+=k.dz; k.y=k.feet-30; } kids.push(k); } // back band stands a touch up-screen = depth, flat field otherwise
   flakes = Array.from({length:90},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.4+Math.random()*1.2,drift:Math.random()*6.28}));
 }
 function kidFeet(k){ k.feet = terrainY(k.x) + (k.dz||0); k.y = k.feet-30; }
