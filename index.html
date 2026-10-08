@@ -65,7 +65,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v27 TEST' : 'v27';
+const STAMP = SELFTEST ? 'v27.1 TEST' : 'v27.1';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,244],[180,252],[360,266],[540,286],[720,312],[900,344],[1080,382],[1260,424],[1440,470]];
@@ -670,10 +670,9 @@ function drawTitle(){
   ctx.lineWidth=6; ctx.strokeStyle='rgba(13,27,42,.75)';
   ctx.strokeText("Season's Greetings from Lil Foots",W/2,200); ctx.fillStyle='#ffd76d'; ctx.fillText("Season's Greetings from Lil Foots",W/2,200);
   ctx.font="italic 21px 'Trebuchet MS',sans-serif"; ctx.fillStyle='rgba(13,27,42,.7)'; ctx.textAlign='center';
-  ctx.fillText('Bury the rival squad. Last team standing wins the hill.', W/2, 540);
+  ctx.fillText('Bury the rival squad. Last team standing wins the hill.', W/2, 536);
   ctx.fillText('Drag a kid to move them — HOLD to power up, release to throw.', W/2, 560);
   ctx.fillText('Touch or mouse — same move: press a kid, drag anywhere on your side, release to throw.', W/2, 584);
-  ctx.fillText('Bury the whole rival squad to take the hill.', W/2, 592);
   bigText('CLICK TO PLAY', 630, 30, '#7fd8ff');
   ctx.font="12px sans-serif"; ctx.fillStyle='rgba(255,255,255,.65)'; ctx.textAlign='right';
   ctx.fillText(STAMP, W-10, H-10);
