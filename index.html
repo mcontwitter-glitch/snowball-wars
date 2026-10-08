@@ -66,7 +66,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v35 TEST' : 'v35';
+const STAMP = SELFTEST ? 'v36 TEST' : 'v36';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const GROUND_Y = 450;
@@ -75,7 +75,7 @@ const TPTS = [[0,GROUND_Y],[180,GROUND_Y],[360,GROUND_Y],[540,GROUND_Y],[720,GRO
 // a power-5 ball from the front line lands in the rival cluster, power 8 overshoots, like the source's tuning
 const BALL_DX = 62.5, BALL_DY = 0; // flat field: level lobs, power = range (source had no gravity)
 // Mau5's 'copy this exact setup': photo-measured (kid=69px). Green drift = small crescent AT the greens' right edge (photo x307-420 vs greens 124-373). Red drift = BIG U-bowl AT the trio's left edge (photo x680-843 vs reds 697-988, red kid peeks from behind). Drifts integrated into the formations' inner edges, ~27% clear center gap like the photo.
-const MOUNDS = [{x:600, w:132, h:77, shape:'crescent'},{x:1050, w:190, h:110, shape:'bowl'}];
+const MOUNDS = [{x:600, w:132, h:77, shape:'crescent'},{x:1050, w:190, h:77, shape:'crescent'}]; // Mau5 'not the second' — second drift is a LOW WIDE CURVED MOUND like the first (photo: both mounds 65px tall, second just wider at 163px vs 113px), NOT the tall U-bowl
 function moundSurface(x){ // drift profile: parabola spanning [x-w, x+w], apex h at center
   for(const m of MOUNDS){ const dx = Math.abs(x-m.x); if(dx < m.w) return terrainY(x) - m.h*(1-(dx/m.w)*(dx/m.w)); }
   return null;
