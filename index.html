@@ -753,8 +753,12 @@ function tsprite(key, x, footY){
   ctx.drawImage(im, x-w/2, footY-h, w, h);
 }
 function kidney(cx, cy, w, h, seed){
-  // lumpy kidney-shaped snowdrift: bumpy union of circles, dent in the top edge, blue-gray underside
+  // lumpy kidney-shaped snowdrift: raised white lump — ground shadow, bumpy union of circles,
+  // dent in the top edge, blue-gray shading on the UNDERSIDE only
   const R=(n)=>{ const v=Math.sin(seed*99+n*37.7)*43758.5; return v-Math.floor(v); };
+  const sh=ctx.createRadialGradient(cx, cy+h*.62, 0, cx, cy+h*.62, w*.62);
+  sh.addColorStop(0,'rgba(105,135,168,.26)'); sh.addColorStop(1,'rgba(105,135,168,0)');
+  ctx.fillStyle=sh; ctx.beginPath(); ctx.ellipse(cx, cy+h*.62, w*.62, h*.42, 0, 0, 7); ctx.fill();
   const N=9;
   ctx.save();
   ctx.beginPath();
@@ -764,12 +768,11 @@ function kidney(cx, cy, w, h, seed){
     if(i===4){ by=cy-h*.16; br=h*.20; }        // kidney dent: middle bump sinks
     ctx.moveTo(bx+br,by); ctx.arc(bx,by,br,0,7);
   }
-  ctx.fillStyle='#fbfdff'; ctx.fill();
-  ctx.globalCompositeOperation='source-atop'; // everything below clips to the blob
-  const ug=ctx.createLinearGradient(0, cy-h*.1, 0, cy+h*.9);
-  ug.addColorStop(0,'rgba(146,172,200,0)'); ug.addColorStop(1,'rgba(146,172,200,.60)');
-  ctx.fillStyle=ug; ctx.beginPath();
-  ctx.ellipse(cx, cy+h*.74, w*.52, h*.78, 0, 0, 7); ctx.fill();
+  ctx.fillStyle='#feffff'; ctx.fill();
+  ctx.globalCompositeOperation='source-atop'; // below clips to the blob
+  const ug=ctx.createLinearGradient(0, cy+h*.18, 0, cy+h*.95);
+  ug.addColorStop(0,'rgba(146,172,200,0)'); ug.addColorStop(1,'rgba(146,172,200,.48)');
+  ctx.fillStyle=ug; ctx.fillRect(cx-w*.6, cy, w*1.2, h*1.6);   // underside band only
   ctx.restore();
 }
 function drawBanner(){
