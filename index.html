@@ -37,7 +37,7 @@ setTimeout(function(){
 // power-bird drops FLAMING (instant bury) & FROST (freeze rivals) orbs,
 // rolling snow terrain with real ball-ground collision.
 const SELFTEST = /[?&]selftest=1/.test(location.search);
-const SPRITE_V = 'v28'; // cache-bust: force every device to pull fresh faces
+const SPRITE_V = 'v29'; // cache-bust: force every device to pull fresh faces
 const SPRITES = {
   hat:   'sprite_hat.png?'+SPRITE_V,
   crown: 'sprite_crown.png?'+SPRITE_V,
@@ -68,10 +68,11 @@ const W = 1440, H = 660, G = 0.42;
 const STAMP = SELFTEST ? 'v29 TEST' : 'v29';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
-const TPTS = [[0,244],[180,252],[360,266],[540,286],[720,312],[900,344],[1080,382],[1260,424],[1440,470]];
+const GROUND_Y = 450;
+const TPTS = [[0,GROUND_Y],[180,GROUND_Y],[360,GROUND_Y],[540,GROUND_Y],[720,GROUND_Y],[900,GROUND_Y],[1080,GROUND_Y],[1260,GROUND_Y],[1440,GROUND_Y]]; // Mau5: flat plane like the original
 // original stage 594x322 scaled to 1440x660; ball slope tuned to this field's tilt (slope .16):
 // a power-5 ball from the front line lands in the rival cluster, power 8 overshoots, like the source's tuning
-const BALL_DX = 62.5, BALL_DY = 10;
+const BALL_DX = 62.5, BALL_DY = 0; // flat field: level lobs, power = range (source had no gravity)
 function fenceX(y){ return 1551.5 - 2.3652*y; } // the source's movement fence: locH >= (320-locV)*2, scaled
 function clampRed(k){ k.x = Math.max(Math.min(k.x, W-50), fenceX(k.feet));
   const ty = terrainY(k.x); k.feet = Math.max(ty-80, Math.min(ty+12, k.feet)); k.y = k.feet-30; }
@@ -110,7 +111,7 @@ function startBigfoot(){ bf={t:0, phase:'rise', x:1360, thrown:0}; streak=0; }
 const ASP = { hat:.653, whitey:.453, crown:.658, green:.78 };
 function mkKid(key, x, team, tint, sc){
   const feet = terrainY(x);
-  return { key, x, feet, y:feet-30, w:50*sc*(ASP[key]||.68), h:50*sc, sc, team, tint,
+  return { key, x, feet, y:feet-30, w:50*sc*(ASP[key]||.68), h:50*sc, sc, team, tint, dz:0,
            hits:0, maxHits: team==='p'?2:3,
            state:'ready', stateT:0, clock:Math.random(), walkDir:0, walkSteps:0,
            face:1, alive:true, squash:0, bobT:Math.random()*6.28 }; // green art natively faces the reds — never mirror it. reds use left-facing art (Mau5, Oct 7: all three face the rivals)
@@ -126,7 +127,7 @@ function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
   kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null; streak=0; bf=null;
   const pk=['hat','whitey','crown'], psc=[1.64,1.54,1.61]; // Mau5: kids same size as the original game (~12% screen height)
-  [1245,1125,1000].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i]))); // reference: reds 62-87% width, staggered diagonal lower-right
+  [1245,1125,1000].forEach((x,i)=>{ const k=mkKid(pk[i], x, 'p', 0, psc[i]); k.dz=[0,8,3][i]; k.feet+=k.dz; k.y=k.feet-30; kids.push(k); }); // original flat field: reds in a right-side row, tiny depth stagger
   const gd = greensPerLevel(level);
   // reference formation: tight staggered cluster on the upper-left slope (2 back + 1 front for the opening trio)
   const gSlots = [];
@@ -135,10 +136,10 @@ function reset(){
     else    gSlots.push({x:110+((i-4)%4)*115 + Math.floor((i-4)/4)*57, sc:1.34, back:1}); // back band, up-slope, reads deeper
   }
   gSlots.sort((a,b)=> (a.back-b.back) || (a.x-b.x));   // back band drawn first, each band up-slope first
-  for(const g of gSlots) kids.push(mkKid('green', g.x, 'e', 0, g.sc));
+  for(const g of gSlots){ const k=mkKid('green', g.x, 'e', 0, g.sc); if(g.back){ k.dz=-34; k.feet+=k.dz; k.y=k.feet-30; } kids.push(k); } // back band stands a touch up-screen = depth, flat field otherwise
   flakes = Array.from({length:90},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.4+Math.random()*1.2,drift:Math.random()*6.28}));
 }
-function kidFeet(k){ k.feet = terrainY(k.x); k.y = k.feet-30; }
+function kidFeet(k){ k.feet = terrainY(k.x) + (k.dz||0); k.y = k.feet-30; }
 function throwBall(k, power){
   const dir = k.team==='p' ? -1 : 1;
   // source: the ball spawns AT the kid's sprite loc - aim is where you park the kid
