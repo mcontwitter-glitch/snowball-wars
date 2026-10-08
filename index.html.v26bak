@@ -125,14 +125,14 @@ function reds(){ return kids.filter(k=>k.team==='p'); }
 function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
   kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null; streak=0; bf=null;
-  const pk=['hat','whitey','crown'], psc=[1.64,1.54,1.61]; // Mau5: kids same size as the original game (~12% screen height)
+  const pk=['hat','whitey','crown'], psc=[2.1,1.97,2.06]; // reference scale: kids ~19% of screen height, big and readable
   [1245,1125,1000].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i]))); // reference: reds 62-87% width, staggered diagonal lower-right
   const gd = greensPerLevel(level);
   // reference formation: tight staggered cluster on the upper-left slope (2 back + 1 front for the opening trio)
   const gSlots = [];
   for(let i=0;i<gd;i++){
-    if(i<4) gSlots.push({x:165+i*115, sc:[1.56,1.5,1.53,1.56][i], back:0});      // front line, original pitch
-    else    gSlots.push({x:110+((i-4)%4)*115 + Math.floor((i-4)/4)*57, sc:1.34, back:1}); // back band, up-slope, reads deeper
+    if(i<4) gSlots.push({x:165+i*115, sc:[2.0,1.92,1.96,2.0][i], back:0});      // front line, reference pitch
+    else    gSlots.push({x:110+((i-4)%4)*115 + Math.floor((i-4)/4)*57, sc:1.72, back:1}); // back band, up-slope, reads deeper
   }
   gSlots.sort((a,b)=> (a.back-b.back) || (a.x-b.x));   // back band drawn first, each band up-slope first
   for(const g of gSlots) kids.push(mkKid('green', g.x, 'e', 0, g.sc));
@@ -158,7 +158,7 @@ function kidHit(k, b){
     if(streak>=STREAK_GOAL && !bf && greens().some(g=>g.alive)) startBigfoot(); }
   if(k.team==='p') streak=0;
   // source: a ball on a held red interrupts the drag (the stillDown loop exits when memberNum >= "R hit")
-  if(k.team==='p'){ if(hold && hold.kid===k) hold=null; }
+  if(k.team==='p'){ if(hold && hold.kid===k) hold=null; if(fireId!==null && actKid===k) fireId=null; }
   // re-hit during the stagger just restarts the flinch - it does not stack (re-setting member "G hit")
   if(k.state==='hit' || k.state==='hit2'){ k.state='hit'; k.stateT=1; return; }
   // "myMove" left over from the interrupted state delays when the hit registers ("hit2" waits myMove=0)
@@ -191,9 +191,45 @@ function up(e){ if(!hold) return;
   if(k.state==='cock') throwBall(k, power);  // source throws even at power 0 - the ball just melts at the kid
   e.preventDefault(); }
 
-// ---------- mobile input: same drag mechanic as desktop, finger directly on the kid ----------
-// (Mau55: no joystick, no FIRE button - press a kid, drag in any direction, release to throw)
-let actKid=null;
+// ---------- mobile controls: left joystick + right charge-fire button ----------
+let touchUI=false, joyId=null, joyBase={x:170,y:H-140}, joyKnob={x:170,y:H-140}, joyDX=0, joyDY=0;
+let fireId=null, fireT0=0, actKid=null;
+function nearestReadyRed(px,py){ let best=null, bd=1e9;
+  for(const k of reds()){ if(!k.alive || (k.state!=='ready' && k.state!=='walk')) continue;
+    const d=Math.hypot(px-k.x, py-(k.y-k.h*.3)); if(d<bd){bd=d; best=k;} } return best; }
+function firePower(){ return fireId===null ? 0 : Math.max(0,Math.min(8,Math.floor((time-fireT0)*12))); }
+function touchRouter(e){ touchUI=true; if(state!=='play') return;
+  const r=cv.getBoundingClientRect(); let ate=false;
+  for(const t of e.changedTouches){
+    const p={x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height)};
+    if(joyId===null && p.x<420 && p.y>H-320){            // joystick zone (bottom-left)
+      joyId=t.identifier; joyBase={x:p.x,y:p.y}; joyKnob={x:p.x,y:p.y}; joyDX=0; ate=true;
+    } else if(fireId===null && Math.hypot(p.x-(W-110),p.y-(H-110))<135){  // fire button
+      fireId=t.identifier; fireT0=time; ate=true;
+      let k=(actKid && actKid.alive && (actKid.state==='ready'||actKid.state==='walk')) ? actKid : nearestReadyRed(W-110,H-110);
+      if(k){ actKid=k; k.state='cock'; k.stateT=999; } } }
+  if(ate){ e.preventDefault(); e.stopImmediatePropagation(); } }
+function touchMoveRouter(e){ const r=cv.getBoundingClientRect(); let ate=false;
+  for(const t of e.changedTouches){
+    if(t.identifier===joyId){ const p={x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height)};
+      const dx=p.x-joyBase.x, dy=p.y-joyBase.y, d=Math.hypot(dx,dy)||1, m=Math.min(d,80);
+      joyKnob={x:joyBase.x+dx/d*m, y:joyBase.y+dy/d*m};
+      joyDX=Math.max(-1,Math.min(1,dx/80)); joyDY=Math.max(-1,Math.min(1,dy/80)); ate=true; }
+    else if(t.identifier===fireId){ ate=true; } }
+  if(ate){ e.preventDefault(); e.stopImmediatePropagation(); } }
+function touchEndRouter(e){ let ate=false;
+  for(const t of e.changedTouches){
+    if(t.identifier===joyId){ joyId=null; joyDX=0; joyDY=0; ate=true;
+      if(actKid && actKid.state==='walk' && state==='play'){ actKid.state='ready'; actKid.stateT=0; } }
+    else if(t.identifier===fireId){ const k=actKid, pw=firePower(); fireId=null; ate=true;
+      if(k && k.state==='cock') throwBall(k,pw); } }
+  if(ate){ e.preventDefault(); e.stopImmediatePropagation(); } }
+// preview flag: ?ui=touch shows the mobile controls on any device
+if(new URLSearchParams(location.search).get('ui')==='touch') touchUI=true;
+cv.addEventListener('touchstart',touchRouter,{passive:false});
+cv.addEventListener('touchmove',touchMoveRouter,{passive:false});
+cv.addEventListener('touchend',touchEndRouter,{passive:false});
+cv.addEventListener('touchcancel',touchEndRouter,{passive:false});
 
 cv.addEventListener('mousedown',click); cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
 cv.addEventListener('touchstart',click,{passive:false}); cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); cv.addEventListener('touchend',up);
@@ -292,6 +328,11 @@ function update(dt){
   // kid ticks (every 5/60 s), ball ticks (every 2/60 s) — discrete like the original
   const kidTicks = dt*60, ballTicks = dt*60;
   for(const k of greens()){ if(k.alive) greenAI(k, kidTicks); }
+  // joystick walk (mobile): same 3.2/tick walk speed, mirrored bounds for the red side
+  if(joyId!==null && (joyDX!==0||joyDY!==0) && state==='play'){
+    let k=(actKid && actKid.alive && (actKid.state==='ready'||actKid.state==='walk')) ? actKid : nearestReadyRed(joyBase.x,joyBase.y);
+    if(k){ actKid=k; k.x+=joyDX*3.4; k.feet+=joyDY*3.4; clampRed(k); if(k.state==='ready') k.state='walk'; }
+  } else if(joyId===null && actKid && actKid.state==='walk'){ actKid.state='ready'; actKid.stateT=0; }
   for(const k of reds()){ if(!k.alive) continue; k.clock += kidTicks;
     while(k.clock >= 5){ k.clock -= 5; redTick(k); } }
   // source flight: a straight diagonal. "snowball" moves (20,10)/2ticks for power*2 steps
