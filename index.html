@@ -64,7 +64,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v20 TEST' : 'v20';
+const STAMP = SELFTEST ? 'v21 TEST' : 'v21';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const TPTS = [[0,244],[180,252],[360,266],[540,286],[720,312],[900,344],[1080,382],[1260,424],[1440,470]];
@@ -100,7 +100,7 @@ function mkKid(key, x, team, tint, sc){
   return { key, x, feet, y:feet-30, w:50*sc*(ASP[key]||.68), h:50*sc, sc, team, tint,
            hits:0, maxHits: team==='p'?2:3,
            state:'ready', stateT:0, clock:Math.random(), walkDir:0, walkSteps:0,
-           face: team==='p'?-1:1, alive:true, squash:0, bobT:Math.random()*6.28 };
+           face:1, alive:true, squash:0, bobT:Math.random()*6.28 }; // no blanket mirror: Mau5's art keeps its native lean; whitey faces the rivals, beanie text reads right
 }
 let kids=[], balls=[], parts=[], flakes=[], shake=0, state='title', time=0;
 let level=1, score=0, levelKills=0, winner=null, bannerT=0, celebrate=0;
@@ -111,21 +111,21 @@ function reds(){ return kids.filter(k=>k.team==='p'); }
 function greens(){ return kids.filter(k=>k.team==='e'); }
 function reset(){
   kids=[]; balls=[]; parts=[]; winner=null; shake=0; celebrate=0; levelKills=0; hold=null;
-  const pk=['hat','whitey','crown'], psc=[1.0,.94,.98]; // SnowCraft-size kids: faces readable
+  const pk=['hat','whitey','crown'], psc=[2.1,1.97,2.06]; // reference scale: kids ~19% of screen height, big and readable
   [1245,1115,985].forEach((x,i)=>kids.push(mkKid(pk[i], x, 'p', 0, psc[i]))); // reference: reds span 62-87% width, lower-right on the tilted field
   const gd = greensPerLevel(level);
   for(let i=0;i<gd;i++){
     const row = Math.floor(i/4);
     const gx = 465 - (i%4)*125 - row*55;   // reference: greens span 11-32% width, upper-left
-    kids.push(mkKid('green', gx-Math.random()*30, 'e', 0, [1.0,.92,.96][i%3]));
+    kids.push(mkKid('green', gx-Math.random()*30, 'e', 0, [2.1,1.93,2.02][i%3]));
   }
   flakes = Array.from({length:90},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.4+Math.random()*1.2,drift:Math.random()*6.28}));
 }
 function kidFeet(k){ k.feet = terrainY(k.x); k.y = k.feet-30; }
 function throwBall(k, power){
   const dir = k.team==='p' ? -1 : 1;
-  balls.push({x:k.x+dir*8, y:k.feet-38, dir, from:k.team, power,
-              phase:'rise', steps:power*2, r:6+power*.8, spin:Math.random()*6, t:0});
+  balls.push({x:k.x+dir*14, y:k.feet-k.h*.76, dir, from:k.team, power,
+              phase:'rise', steps:power*2, r:11+power*1.5, spin:Math.random()*6, t:0});
   k.state='toss'; k.stateT=5; sfxThrow();
 }
 function hittable(k){
@@ -149,9 +149,9 @@ function pos(e){ const r=cv.getBoundingClientRect();
   const t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
   return { x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height) }; }
 function down(e){ if(state!=='play') return; const p=pos(e);
-  let best=null, bd=70;
+  let best=null, bd=130;
   for(const k of reds()){ if(!k.alive || k.state!=='ready') continue;
-    const d=Math.hypot(p.x-k.x, p.y-(k.y-16));
+    const d=Math.hypot(p.x-k.x, p.y-(k.y-k.h*.3));
     if(d<bd){ bd=d; best=k; } }
   if(best){ hold={kid:best, t0:time}; best.state='cock'; best.stateT=999; }
   e.preventDefault(); }
@@ -279,7 +279,7 @@ function update(dt){
         const t=es[Math.floor(Math.random()*es.length)];
         // simulate the full arc (rise + drop) to find a kid.x that splats on the target
         const sim = (x0, p) => {
-          let x=x0, y=terrainY(x0)-20, steps=p*2;
+          let x=x0, y=terrainY(x0)-80, steps=p*2;
           while(x>-40 && x<W+40){
             if(steps>0){ x-=36; y-=18; steps--; } else { x-=18; y+=9; }
             if(y>=terrainY(x)-2) break;
@@ -349,7 +349,7 @@ function tree(x,y,h,s){
 }
 function bankY(x){ return terrainY(x) - 92 + 10*Math.sin(x*0.004); }
 function drift(x){
-  const y = terrainY(x), w=64, h=30;
+  const y = terrainY(x), w=88, h=42;
   ctx.fillStyle='#d7e4ee';
   ctx.beginPath(); ctx.moveTo(x-w, y+2);
   ctx.quadraticCurveTo(x, y-h, x+w, y+2); ctx.closePath(); ctx.fill();
@@ -435,10 +435,12 @@ function drawFighter(f){
   }
   ctx.translate(f.x, f.feet+bob);
   ctx.scale(f.face*sq, 1/sq);
-  // authentic SnowCraft poses
-  if(f.state==='cock'){ ctx.rotate(-.22); }
-  else if(f.state==='toss'){ ctx.rotate(.28); }
-  else if(f.state==='windup'){ ctx.rotate(-.16); }
+  // authentic SnowCraft poses, oriented to the throw direction
+  const td = f.team==='p' ? -1 : 1;   // reds throw LEFT, greens throw RIGHT
+  if(f.state==='cock'){ ctx.rotate(-.22*td); }
+  else if(f.state==='toss'){ ctx.rotate(.28*td); }
+  else if(f.state==='windup'){ ctx.rotate(-.16*td); }
+  else if(f.state==='ready' && f.team==='p'){ ctx.rotate(-.05); } // squared up toward the rivals
   else if(f.state==='daze'){ ctx.rotate(.28*Math.sin(time*11)); }
   else if(f.state==='ow'){ ctx.scale(1,.82); ctx.rotate(-.12); }
   else if(f.state==='down'){ ctx.scale(1,.6); ctx.rotate(-.3); }
@@ -465,14 +467,14 @@ function drawFighter(f){
 function drawAim(){
   if(state!=='play') return;
   // hover reticle over nearest ready red (the bullseye)
-  let hov=null, bd=70; const r=cv.getBoundingClientRect();
+  let hov=null, bd=130; const r=cv.getBoundingClientRect();
   if(lastMouse.x>=0){
     for(const k of reds()){ if(!k.alive || k.state!=='ready') continue;
-      const d=Math.hypot(lastMouse.x-k.x, lastMouse.y-(k.y-16));
+      const d=Math.hypot(lastMouse.x-k.x, lastMouse.y-(k.y-k.h*.3));
       if(d<bd){ bd=d; hov=k; } } }
   const target = hold? hold.kid : hov;
   if(target){
-    const ty = target.y-52 - 4;
+    const ty = target.y-target.h-8;
     ctx.save(); ctx.translate(target.x, ty);
     ctx.strokeStyle='rgba(255,120,60,.95)'; ctx.lineWidth=3;
     ctx.beginPath(); ctx.arc(0,0,13,0,7); ctx.stroke();
