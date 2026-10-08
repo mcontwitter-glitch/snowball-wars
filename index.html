@@ -66,7 +66,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v33 TEST' : 'v33';
+const STAMP = SELFTEST ? 'v34 TEST' : 'v34';
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const GROUND_Y = 450;
@@ -436,6 +436,12 @@ function drawBG(){
   // Mau5's Season's Greetings card reference: pure-white minimal battleground — no sky tint, no sun,
   // no snowbank, no fence; only the kids, the drifts, and their soft grey shadows (v31)
   ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);
+  // Mau5's gameplay reference (Oct 8): BIG ENTERTAINMENT branding across mid-field, muted blue-grey serif
+  ctx.font='bold 96px Georgia, "Times New Roman", serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#4a6572';
+  ctx.fillText('BIG ENTERTAINMENT', W/2, 250);
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   for(const m of MOUNDS) drift(m.x, m.w, m.h); // Mau5: four snowdrift obstacles, two per side
 }
 function hill(x,base,w,h,rough){
