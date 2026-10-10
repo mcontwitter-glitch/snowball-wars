@@ -37,7 +37,7 @@ setTimeout(function(){
 // power-bird drops FLAMING (instant bury) & FROST (freeze rivals) orbs,
 // rolling snow terrain with real ball-ground collision.
 const SELFTEST = /[?&]selftest=1/.test(location.search);
-const SPRITE_V = 'v38'; // cache-bust: BudE's hardhat kid now faces LEFT toward the greens (file mirrored — no text on him, safe) // cache-bust: force every device to pull fresh faces
+const SPRITE_V = 'v39'; // cache-bust: v39 adds Mau5's targeting aid — hold a kid and dashes + a landing ring show where the snowball will land
 const SPRITES = {
   hat:   'sprite_hat.png?'+SPRITE_V,
   crown: 'sprite_crown.png?'+SPRITE_V,
@@ -770,6 +770,36 @@ function drawDragUI(){ // Mau5: highlight circle around the selected kid + power
   ctx.fillText(pw+' / 8', 0, py+.5);
   ctx.restore(); }
 
+function drawAimTrail(){ // Mau5's targeting aid (v39): while charging, snow-dashes trace the flight line and a ring marks where the ball will land
+  if(!hold || state!=='play') return;
+  const k = hold.kid; if(!k.alive) return;
+  const pw = Math.max(0, Math.min(8, Math.floor((time-hold.t0)*12)));   // same charge rate as up()
+  if(pw<=0) return;                       // power 0 melts at the kid - nothing to show
+  const dir = -1;                         // reds throw left toward the greens
+  const y0 = k.feet - k.h*.45;            // release height (same as throwBall)
+  const landX = k.x + dir*(BALL_DX*2*pw + BALL_DX/2*10); // rise = pw*2 steps, then 10 melt steps at half speed
+  const col = pw>=8 ? '#ff5d5d' : pw>=6 ? '#ffb14d' : pw>=3 ? '#ffe98a' : '#7fff9e'; // same ramp as the power meter
+  const pulse = .60 + .24*Math.sin(time*7);
+  // dashes along the flight path (white dots with a blue-grey rim so they read on the white field)
+  const gap = 58, total = Math.max(1, Math.abs(landX-k.x)/gap);
+  let i = 0;
+  for(let x=k.x+dir*34; dir<0 ? x>=landX : x<=landX; x+=dir*gap, i++){
+    if(x<-40 || x>W+40) continue;
+    ctx.globalAlpha = (.9 - .5*(i/total)) * pulse;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.ellipse(x, y0, 5.5, 2.6, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(140,175,205,.95)'; ctx.lineWidth = 1; ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  if(landX < -20) return;                 // melts off-field: no marker
+  // landing marker: pulsing dashed ring + center dot where the ball melts down
+  ctx.save(); ctx.translate(landX, y0);
+  ctx.globalAlpha = pulse;
+  ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.setLineDash([6,5]);
+  ctx.beginPath(); ctx.arc(0, 0, 15, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.arc(0, 0, 4, 0, 7); ctx.fillStyle = col; ctx.fill();
+  ctx.restore(); ctx.globalAlpha = 1;
+}
 function drawSnow(){ ctx.fillStyle='rgba(178,192,206,.8)';
   for(const f of flakes){ ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,7); ctx.fill(); } }
 function bigText(txt,y,size,fill){ ctx.font=`bold ${size}px 'Trebuchet MS',sans-serif`;
@@ -911,7 +941,7 @@ function loop(ts){
   ctx.save();
   if(shake>0) ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
   drawBG(); drawBigfoot(); for(const k of [...kids].sort((a,b)=>a.feet-b.feet)) drawFighter(k);
-  drawBalls(); drawAim(); drawSnow(); drawDragUI();
+  drawBalls(); drawAim(); drawAimTrail(); drawSnow(); drawDragUI();
   if(state==='title') drawTitle();
   if(state==='banner') drawBanner();
   if(state==='end') drawEnd();
