@@ -66,7 +66,7 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v40 TEST' : 'v40';
+const STAMP = SELFTEST ? 'v41 TEST' : 'v41';
 
 // ---------- holiday themes (Mau5, Oct 11): themes DRESS the field — never move the tuned photo-exact layout ----------
 let THEME = 'classic';
@@ -480,21 +480,20 @@ function drawBG(){
 
 // ---------- Halloween dressing (theme only — kid/drift/ball geometry untouched) ----------
 function drawBGHalloween(){
-  // same photo-exact layout, dressed: dusk sky, harvest moon, bats, jack-o-lanterns on the edges
-  ctx.fillStyle='#f6f4fb'; ctx.fillRect(0,0,W,H);
-  const sky = ctx.createLinearGradient(0,0,0,150);          // spooky dusk band
-  sky.addColorStop(0,'#241b3e'); sky.addColorStop(.65,'#453363'); sky.addColorStop(1,'rgba(69,51,99,0)');
+  // Mau5's correction (Oct 11, his ref photo): THE CAST'S WORLD STAYS BRIGHT WHITE — Halloween is
+  // ACCENTS ONLY: amber moon + bats in the light sky band, spooky tree + jack-o-lanterns at the edges.
+  // Never a dark wash, never behind the kids. Layout stays photo-exact.
+  ctx.fillStyle='#fdfeff'; ctx.fillRect(0,0,W,H);
+  const sky = ctx.createLinearGradient(0,0,0,150);          // same light sky band as classic
+  sky.addColorStop(0,'#e4edf4'); sky.addColorStop(1,'rgba(228,237,244,0)');
   ctx.fillStyle=sky; ctx.fillRect(0,0,W,150);
-  moon(1128, 74, 44);
-  spookyTree(34, 212, 128, 1);
+  moon(1128, 74, 44);                                        // harvest moon in the light band
+  spookyTree(34, 212, 128, 1);                               // far-left edge silhouette
   const t = performance.now()/1000;
-  for(let i=0;i<6;i++){ const bx=((i*277 + t*26)%(W+120))-60, by=34+i*17+Math.sin(t*1.4+i*2)*9; bat(bx,by,1+(i%3)*.3); }
-  const wash = ctx.createRadialGradient(0,H,80, 0,H,1080);   // moonlit snow shading, indigo
-  wash.addColorStop(0,'rgba(112,98,160,.42)'); wash.addColorStop(1,'rgba(112,98,160,0)');
-  ctx.fillStyle=wash; ctx.fillRect(0,0,W,H);
+  for(let i=0;i<6;i++){ const bx=((i*277 + t*26)%(W+120))-60, by=30+i*14+Math.sin(t*1.4+i*2)*9; bat(bx,by,1+(i%3)*.3); }
   ctx.font='bold 64px Georgia, "Times New Roman", serif';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle='#5a4379';
+  ctx.fillStyle='#3f5d75';
   ctx.fillText('BIG ENTERTAINMENT', 720, 292);
   ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   pumpkin(52, 132, 15, false);     // jack-o-lanterns on the field edges — decor only
@@ -932,31 +931,29 @@ function drawTitle(){
   drawThemePicker();
 }
 function drawTitleHalloween(){
-  // Halloween-dressed title card: dusk arena, harvest moon, bats, pumpkins by the drifts.
-  // Same cast + drift positions as the classic card (Mau5's spec: layout locked).
-  const bg=ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#1b1333'); bg.addColorStop(.55,'#241b42'); bg.addColorStop(1,'#2e2352');
-  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-  for(let i=0;i<26;i++){                       // faint moonlit snow unevenness, deterministic
+  // Mau5's correction (Oct 11, his ref photo): the CLASSIC BRIGHT title card, untouched —
+  // Halloween only adds accents: amber greeting, amber moon + bats up top, pumpkins by the drifts.
+  // The cast + arena read exactly like his reference. Same sprites, same positions, same bright snow.
+  ctx.fillStyle='#fcfdff'; ctx.fillRect(0,0,W,H);
+  for(let i=0;i<26;i++){                     // faint snow unevenness, deterministic (same as classic)
     const bx=(i*97.3+31)%W, by=(i*61.7+17)%H, br=26+(i*29)%70;
     const g=ctx.createRadialGradient(bx,by,0,bx,by,br);
-    g.addColorStop(0,'rgba(196,186,255,.08)'); g.addColorStop(1,'rgba(196,186,255,0)');
+    g.addColorStop(0,'rgba(198,220,240,.10)'); g.addColorStop(1,'rgba(198,220,240,0)');
     ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(bx,by,br,br*.6,0,0,7); ctx.fill();
   }
   const vg=ctx.createRadialGradient(W/2,H/2,H*.34, W/2,H/2,W*.60);
-  vg.addColorStop(0,'rgba(20,12,40,0)'); vg.addColorStop(.72,'rgba(20,12,40,.20)'); vg.addColorStop(1,'rgba(20,12,40,.55)');
+  vg.addColorStop(0,'rgba(148,178,208,0)'); vg.addColorStop(.72,'rgba(148,178,208,.08)'); vg.addColorStop(1,'rgba(148,178,208,.30)');
   ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
-  moon(1180, 120, 52);
+  moon(1180, 96, 48);                        // amber harvest moon up top (above the cast)
   const t=performance.now()/1000;
-  for(let i=0;i<5;i++){ const bx=((i*331+t*22)%(W+100))-50, by=60+i*26+Math.sin(t*1.2+i*2.1)*8; bat(bx,by,1.1+(i%3)*.3); }
-  spookyTree(40, 300, 160, 1.1);
+  for(let i=0;i<5;i++){ const bx=((i*331+t*22)%(W+100))-50, by=42+i*18+Math.sin(t*1.2+i*2.1)*7; bat(bx,by,.9+(i%3)*.25); }
   ctx.textAlign='center';
   ctx.font='52px Georgia, "Times New Roman", serif';
-  ctx.fillStyle='#e8b04c';
+  ctx.fillStyle='#e8b04c';                   // amber greeting — the one Halloween color swap
   ctx.fillText("Season's Greetings", W/2, 168);
   kidney(618, 442, 152, 46, 3);
   kidney(882, 542, 170, 52, 7);
-  pumpkin(500, 452, 15, true);                 // pumpkins tucked by the drifts — decor only
+  pumpkin(500, 452, 15, true);               // pumpkins tucked by the drifts — decor only
   pumpkin(1140, 578, 15, true);
   tsprite('title_green', 200, 292);
   tsprite('title_green', 334, 260);
@@ -964,9 +961,9 @@ function drawTitleHalloween(){
   tsprite('whitey', 1160, 262);
   tsprite('crown', 1008, 552);
   tsprite('hat', 1274, 524);
-  ctx.font='italic 17px Georgia, serif'; ctx.fillStyle='rgba(230,220,255,.6)';
+  ctx.font='italic 17px Georgia, serif'; ctx.fillStyle='rgba(70,88,110,.55)';
   ctx.fillText('click to play', W/2, 628);
-  ctx.font='11px sans-serif'; ctx.fillStyle='rgba(230,220,255,.5)'; ctx.textAlign='right';
+  ctx.font='11px sans-serif'; ctx.fillStyle='rgba(70,88,110,.45)'; ctx.textAlign='right';
   ctx.fillText(STAMP, W-10, H-8);
 }
 // ---------- theme picker pills (Mau5's holiday maps: classic + halloween) ----------
