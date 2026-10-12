@@ -37,7 +37,7 @@ setTimeout(function(){
 // power-bird drops FLAMING (instant bury) & FROST (freeze rivals) orbs,
 // rolling snow terrain with real ball-ground collision.
 const SELFTEST = /[?&]selftest=1/.test(location.search);
-const SPRITE_V = 'v39'; // cache-bust: v39 adds Mau5's targeting aid — hold a kid and dashes + a landing ring show where the snowball will land
+const SPRITE_V = 'v40'; // cache-bust: v40 adds Mau5's holiday themes — Halloween dresses the field (dusk sky, harvest moon, bats, jack-o-lanterns); tuned layout untouched, theme picker on the title card
 const SPRITES = {
   hat:   'sprite_hat.png?'+SPRITE_V,
   crown: 'sprite_crown.png?'+SPRITE_V,
@@ -66,7 +66,17 @@ setTimeout(tryBoot, 3500); // mobile fallback: never hang on image decode
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const FILTER_OK = (typeof ctx.filter === 'string');
 const W = 1440, H = 660, G = 0.42;
-const STAMP = SELFTEST ? 'v37 TEST' : 'v37';
+const STAMP = SELFTEST ? 'v40 TEST' : 'v40';
+
+// ---------- holiday themes (Mau5, Oct 11): themes DRESS the field — never move the tuned photo-exact layout ----------
+let THEME = 'classic';
+try{ const _t = localStorage.getItem('sbw_theme'); if(_t==='halloween'||_t==='classic') THEME = _t; }catch(e){}
+function setTheme(t){ THEME = (t==='halloween') ? 'halloween' : 'classic';
+  try{ localStorage.setItem('sbw_theme', THEME); }catch(e){}
+  applyPageTheme(); }
+function applyPageTheme(){ document.body.style.background = (THEME==='halloween') ? '#150e24' : '#0d1524';
+  const c = document.getElementById('game'); if(c) c.style.boxShadow = (THEME==='halloween') ? '0 0 60px rgba(255,138,60,.24)' : '0 0 60px rgba(120,200,255,.25)'; }
+applyPageTheme();
 
 // ---------- terrain (rolling snow banks, lake valley in middle) ----------
 const GROUND_Y = 450;
@@ -219,7 +229,7 @@ cv.addEventListener('touchstart',click,{passive:false}); cv.addEventListener('to
 cv.addEventListener('click',click);
 
 function click(e){ const p=pos(e);
-  if(state==='title'){ startGame(); return; }
+  if(state==='title'){ const pill = pillAt(p.x,p.y); if(pill){ setTheme(pill); return; } startGame(); return; }
   if(state==='end'){ if(p.x>W/2-110&&p.x<W/2+110&&p.y>H-116&&p.y<H-72){ level=1; score=0; startGame(); } } }
 function startGame(){ state='play'; audio(); try{ if(AC && AC.state==='suspended') AC.resume(); }catch(err){}
   reset(); const rot=document.getElementById('rot'); if(rot) rot.style.display='none'; }
@@ -448,6 +458,7 @@ function explodeKid(k, nPieces){
 const stars = Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*300,r:.5+Math.random()*1.2,tw:Math.random()*6.28}));
 const snowDim = Array.from({length:110},(_,i)=>({x:(i*37.7+11)%W, y: GROUND_Y+8+((i*53.3+29)%(H-GROUND_Y-20))})); // plane-of-field texture
 function drawBG(){
+  if(THEME==='halloween'){ drawBGHalloween(); } else {
   // Mau5's exact image (file_374): near-white field, soft blue-grey sky band across the top
   // (photo y0-112 gradient #e4edf4 -> white), BIG ENTERTAINMENT serif centered at photo
   // (cx640,cy373 -> 720,292), 630px photo width -> 709px game -> 64px Georgia, letters #3f5d75.
@@ -463,7 +474,86 @@ function drawBG(){
   ctx.fillStyle='#3f5d75';
   ctx.fillText('BIG ENTERTAINMENT', 720, 292);
   ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  }
   for(const m of MOUNDS) drift(m.x, m.w, m.h, m.shape, m.baseY);
+}
+
+// ---------- Halloween dressing (theme only — kid/drift/ball geometry untouched) ----------
+function drawBGHalloween(){
+  // same photo-exact layout, dressed: dusk sky, harvest moon, bats, jack-o-lanterns on the edges
+  ctx.fillStyle='#f6f4fb'; ctx.fillRect(0,0,W,H);
+  const sky = ctx.createLinearGradient(0,0,0,150);          // spooky dusk band
+  sky.addColorStop(0,'#241b3e'); sky.addColorStop(.65,'#453363'); sky.addColorStop(1,'rgba(69,51,99,0)');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,150);
+  moon(1128, 74, 44);
+  spookyTree(34, 212, 128, 1);
+  const t = performance.now()/1000;
+  for(let i=0;i<6;i++){ const bx=((i*277 + t*26)%(W+120))-60, by=34+i*17+Math.sin(t*1.4+i*2)*9; bat(bx,by,1+(i%3)*.3); }
+  const wash = ctx.createRadialGradient(0,H,80, 0,H,1080);   // moonlit snow shading, indigo
+  wash.addColorStop(0,'rgba(112,98,160,.42)'); wash.addColorStop(1,'rgba(112,98,160,0)');
+  ctx.fillStyle=wash; ctx.fillRect(0,0,W,H);
+  ctx.font='bold 64px Georgia, "Times New Roman", serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#5a4379';
+  ctx.fillText('BIG ENTERTAINMENT', 720, 292);
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  pumpkin(52, 132, 15, false);     // jack-o-lanterns on the field edges — decor only
+  pumpkin(1388, 148, 13, false);
+  pumpkin(64, 606, 19, true);
+  pumpkin(1374, 592, 16, true);
+}
+function moon(x,y,r){
+  const g=ctx.createRadialGradient(x,y,r*.4, x,y,r*2.1);
+  g.addColorStop(0,'rgba(244,212,140,.45)'); g.addColorStop(1,'rgba(244,212,140,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r*2.1,0,7); ctx.fill();
+  const m=ctx.createRadialGradient(x-r*.3,y-r*.3,r*.1, x,y,r);
+  m.addColorStop(0,'#f7dfad'); m.addColorStop(.8,'#f0cd85'); m.addColorStop(1,'#e4b96c');
+  ctx.fillStyle=m; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  ctx.fillStyle='rgba(216,178,108,.5)';
+  [[.28,-.2,.16],[-.3,.26,.12],[.1,.4,.09],[-.05,-.45,.07]].forEach(c=>{
+    ctx.beginPath(); ctx.arc(x+c[0]*r, y+c[1]*r, c[2]*r, 0, 7); ctx.fill(); });
+}
+function bat(x,y,s){
+  const f = Math.abs(Math.sin(performance.now()/170));   // wing flap
+  ctx.fillStyle='#1d1430';
+  ctx.beginPath();
+  ctx.moveTo(x,y);
+  ctx.quadraticCurveTo(x-7*s, y-9*s*(1+f), x-16*s, y-4*s*(1+f));
+  ctx.quadraticCurveTo(x-10*s, y+3*s, x, y+2*s);
+  ctx.quadraticCurveTo(x+10*s, y+3*s, x+16*s, y-4*s*(1+f));
+  ctx.quadraticCurveTo(x+7*s, y-9*s*(1+f), x, y);
+  ctx.fill();
+}
+function pumpkin(x,y,r,glow){
+  ctx.fillStyle='rgba(90,70,130,.30)'; ctx.beginPath(); ctx.ellipse(x, y+r*.18, r*1.05, r*.24, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle='#5d7a3a'; ctx.lineWidth=Math.max(2,r*.16); ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x, y-r*.92); ctx.quadraticCurveTo(x+r*.15, y-r*1.2, x+r*.42, y-r*1.14); ctx.stroke();
+  const lobes=[[-.72,1],[-.36,.96],[0,1],[.36,.96],[.72,1]];
+  for(let i=0;i<lobes.length;i++){
+    const lx=x+lobes[i][0]*r, lw=r*.38*lobes[i][1];
+    const pg=ctx.createLinearGradient(lx-lw,0,lx+lw,0);
+    pg.addColorStop(0,'#b34e17'); pg.addColorStop(.5, i%2? '#d97a25':'#e8862c'); pg.addColorStop(1,'#b34e17');
+    ctx.fillStyle=pg; ctx.beginPath(); ctx.ellipse(lx, y-r*.1, lw, r*.92, 0, 0, 7); ctx.fill(); }
+  if(glow){
+    const gg=ctx.createRadialGradient(x,y-r*.2,0, x,y-r*.2, r*1.3);
+    gg.addColorStop(0,'rgba(255,190,60,.4)'); gg.addColorStop(1,'rgba(255,190,60,0)');
+    ctx.fillStyle=gg; ctx.beginPath(); ctx.arc(x,y-r*.2,r*1.3,0,7); ctx.fill(); }
+  ctx.fillStyle='#241205';
+  ctx.beginPath(); ctx.moveTo(x-r*.5,y-r*.42); ctx.lineTo(x-r*.16,y-r*.62); ctx.lineTo(x-r*.12,y-r*.26); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x+r*.5,y-r*.42); ctx.lineTo(x+r*.16,y-r*.62); ctx.lineTo(x+r*.12,y-r*.26); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x-r*.5,y+r*.08);
+  ctx.lineTo(x-r*.3,y+r*.22); ctx.lineTo(x-r*.12,y+r*.1); ctx.lineTo(x+r*.05,y+r*.26);
+  ctx.lineTo(x+r*.22,y+r*.1); ctx.lineTo(x+r*.38,y+r*.2); ctx.lineTo(x+r*.5,y+r*.02);
+  ctx.closePath(); ctx.fill();
+}
+function spookyTree(x,baseY,h,s){
+  ctx.strokeStyle='#241a38'; ctx.lineCap='round';
+  ctx.lineWidth=7*s; ctx.beginPath(); ctx.moveTo(x,baseY);
+  ctx.quadraticCurveTo(x-14*s, baseY-h*.5, x-4*s, baseY-h); ctx.stroke();
+  ctx.lineWidth=3.4*s;
+  [[.42,.7,.5],[.66,-.55,.42],[.8,-.35,.3],[.88,.5,.36]].forEach(b=>{
+    const by=baseY-h*b[0]; ctx.beginPath(); ctx.moveTo(x-4*s, by);
+    ctx.quadraticCurveTo(x-4*s+b[1]*h*.2, by-h*b[2]*.3, x-4*s+b[1]*h*.3, by-h*b[2]*.6); ctx.stroke(); });
 }
 function hill(x,base,w,h,rough){
   ctx.beginPath(); ctx.moveTo(x-100,H); ctx.lineTo(x-100,base);
@@ -806,6 +896,7 @@ function bigText(txt,y,size,fill){ ctx.font=`bold ${size}px 'Trebuchet MS',sans-
   ctx.textAlign='center'; ctx.lineWidth=8; ctx.strokeStyle='rgba(13,27,42,.8)';
   ctx.strokeText(txt,W/2,y); ctx.fillStyle=fill; ctx.fillText(txt,W/2,y); }
 function drawTitle(){
+  if(THEME==='halloween'){ drawTitleHalloween(); drawThemePicker(); return; }
   // Mau5's spec: 1998 SnowCraft title card — fixed diagonal-down camera, one flat white snow arena,
   // no sky, no trees, no UI. Lots of empty space, cool blue vignette at the edges.
   ctx.fillStyle='#fcfdff'; ctx.fillRect(0,0,W,H);
@@ -838,7 +929,70 @@ function drawTitle(){
   ctx.fillText('click to play', W/2, 628);
   ctx.font='11px sans-serif'; ctx.fillStyle='rgba(70,88,110,.45)'; ctx.textAlign='right';
   ctx.fillText(STAMP, W-10, H-8);
+  drawThemePicker();
 }
+function drawTitleHalloween(){
+  // Halloween-dressed title card: dusk arena, harvest moon, bats, pumpkins by the drifts.
+  // Same cast + drift positions as the classic card (Mau5's spec: layout locked).
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#1b1333'); bg.addColorStop(.55,'#241b42'); bg.addColorStop(1,'#2e2352');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  for(let i=0;i<26;i++){                       // faint moonlit snow unevenness, deterministic
+    const bx=(i*97.3+31)%W, by=(i*61.7+17)%H, br=26+(i*29)%70;
+    const g=ctx.createRadialGradient(bx,by,0,bx,by,br);
+    g.addColorStop(0,'rgba(196,186,255,.08)'); g.addColorStop(1,'rgba(196,186,255,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(bx,by,br,br*.6,0,0,7); ctx.fill();
+  }
+  const vg=ctx.createRadialGradient(W/2,H/2,H*.34, W/2,H/2,W*.60);
+  vg.addColorStop(0,'rgba(20,12,40,0)'); vg.addColorStop(.72,'rgba(20,12,40,.20)'); vg.addColorStop(1,'rgba(20,12,40,.55)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+  moon(1180, 120, 52);
+  const t=performance.now()/1000;
+  for(let i=0;i<5;i++){ const bx=((i*331+t*22)%(W+100))-50, by=60+i*26+Math.sin(t*1.2+i*2.1)*8; bat(bx,by,1.1+(i%3)*.3); }
+  spookyTree(40, 300, 160, 1.1);
+  ctx.textAlign='center';
+  ctx.font='52px Georgia, "Times New Roman", serif';
+  ctx.fillStyle='#e8b04c';
+  ctx.fillText("Season's Greetings", W/2, 168);
+  kidney(618, 442, 152, 46, 3);
+  kidney(882, 542, 170, 52, 7);
+  pumpkin(500, 452, 15, true);                 // pumpkins tucked by the drifts — decor only
+  pumpkin(1140, 578, 15, true);
+  tsprite('title_green', 200, 292);
+  tsprite('title_green', 334, 260);
+  tsprite('title_green', 242, 512);
+  tsprite('whitey', 1160, 262);
+  tsprite('crown', 1008, 552);
+  tsprite('hat', 1274, 524);
+  ctx.font='italic 17px Georgia, serif'; ctx.fillStyle='rgba(230,220,255,.6)';
+  ctx.fillText('click to play', W/2, 628);
+  ctx.font='11px sans-serif'; ctx.fillStyle='rgba(230,220,255,.5)'; ctx.textAlign='right';
+  ctx.fillText(STAMP, W-10, H-8);
+}
+// ---------- theme picker pills (Mau5's holiday maps: classic + halloween) ----------
+const PILLS = [ {t:'classic', x:20, y:H-58, w:150, h:38}, {t:'halloween', x:182, y:H-58, w:176, h:38} ];
+function pillAt(px,py){ for(const p of PILLS){ if(px>p.x-6 && px<p.x+p.w+6 && py>p.y-6 && py<p.y+p.h+6) return p.t; } return null; }
+function drawThemePicker(){
+  const labels = { classic:'\u2744 CLASSIC', halloween:'\uD83C\uDF83 HALLOWEEN' };
+  const dark = (THEME==='halloween');
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font='bold 15px "Trebuchet MS",sans-serif';
+  for(const p of PILLS){
+    const on = (THEME===p.t);
+    ctx.fillStyle = on ? (dark?'rgba(232,150,60,.95)':'rgba(70,88,110,.92)')
+                       : (dark?'rgba(255,255,255,.10)':'rgba(70,88,110,.12)');
+    roundRect(p.x, p.y, p.w, p.h, 19); ctx.fill();
+    ctx.strokeStyle = on ? (dark?'#f5c882':'#3f5d75')
+                         : (dark?'rgba(232,226,255,.35)':'rgba(70,88,110,.35)');
+    ctx.lineWidth = 2; roundRect(p.x, p.y, p.w, p.h, 19); ctx.stroke();
+    ctx.fillStyle = on ? (dark?'#1c1533':'#ffffff')
+                        : (dark?'rgba(240,236,255,.85)':'rgba(70,88,110,.75)');
+    ctx.fillText(labels[p.t], p.x+p.w/2, p.y+p.h/2+1);
+  }
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 function tsprite(key, x, footY){
   const im = IMAGES[key]; if(!im || !im.ok) return;
   const h = 118, w = im.width*(h/im.height);
